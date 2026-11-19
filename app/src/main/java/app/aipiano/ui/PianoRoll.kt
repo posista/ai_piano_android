@@ -2,6 +2,7 @@ package app.aipiano.ui
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxSize
@@ -25,10 +26,13 @@ import kotlin.math.min
 
 internal val LeftHandColor = Color(0xFF4FC3F7)
 internal val RightHandColor = Color(0xFFFFB74D)
+internal val HitColor = Color(0xFF66BB6A)
+internal val WrongColor = Color(0xFFEF5350)
 
 private val BackgroundColor = Color(0xFF101418)
 private val WhiteKeyColor = Color(0xFFF5F5F5)
 private val BlackKeyColor = Color(0xFF212121)
+private val PressedKeyColor = Color(0xFFB3E5FC)
 
 /** Wie weit im Voraus (in Songzeit) die Balken über der Klaviatur sichtbar sind. */
 private const val LOOKAHEAD_MS = 2500.0
@@ -37,19 +41,28 @@ private const val MAX_WHITE_KEY_DP = 60f
 
 /**
  * Fallende Notenbalken über einer Klaviatur. Zoom per Pinch, Verschieben per Wischen.
- * Die Zeit läuft von oben nach unten: ein Balken berührt die Klaviatur genau dann,
- * wenn die Note gespielt werden soll.
+ * Ein Balken berührt die Klaviatur genau dann, wenn die Note gespielt werden soll.
+ *
+ * @param hitNoteIds richtig gespielte Noten (grün)
+ * @param pressedKeys gerade gedrückte Tasten
+ * @param wrongKeys kurz rot markierte Tasten
+ * @param onKey wenn gesetzt, lösen Berührungen auf der Klaviatur Tasten aus (Bildschirmtasten)
  */
 @Composable
 fun PianoRoll(
     song: Song?,
     positionMs: Double,
     modifier: Modifier = Modifier,
+    hitNoteIds: Set<Int> = emptySet(),
+    pressedKeys: Set<Int> = emptySet(),
+    wrongKeys: Set<Int> = emptySet(),
+    onKey: ((midi: Int, down: Boolean) -> Unit)? = null,
 ) {
     val density = LocalDensity.current.density
     BoxWithConstraints(modifier = modifier.background(BackgroundColor)) {
         val viewWidthDp = maxWidth.value
-        // Zoom und Scroll in dp, einmal passend zum Lied eingestellt
+        val viewHeightDp = maxHeight.value
+        // Zoom und Scroll in dp, passend zum Tonumfang des Liedes eingestellt
         var zoom by remember(song, viewWidthDp) { mutableFloatStateOf(fitZoom(song, viewWidthDp)) }
         var scroll by remember(song, viewWidthDp) { mutableFloatStateOf(fitScroll(song, zoom)) }
 
@@ -66,9 +79,44 @@ fun PianoRoll(
                         val maxScroll = max(0f, KeyLayout.WHITE_KEY_COUNT * newZoom - viewWidthDp)
                         scroll = (contentUnits * newZoom - cx - pan.x / density).coerceIn(0f, maxScroll)
                     }
-                },
+                }
+                .then(
+                    if (onKey == null) {
+                        Modifier
+                    } else {
+                        Modifier.pointerInput(onKey, viewWidthDp, viewHeightDp) {
+                            detectTapGestures(onPress = { offset ->
+                                val midi = keyAt(
+                                    x = offset.x,
+                                    y = offset.y,
+                                    heightPx = viewHeightDp * density,
+                                    density = density,
+                                    zoomDp = zoom,
+                                    scrollDp = scroll,
+                                )
+                                if (midi != null) {
+                                    onKey(midi, true)
+                                    try {
+                                        tryAwaitRelease()
+                                    } finally {
+                                        onKey(midi, false)
+                                    }
+                                }
+                            })
+                        }
+                    },
+                ),
         ) {
-            drawRoll(song, positionMs, zoom, scroll, density)
+            drawRoll(
+                song = song,
+                positionMs = positionMs,
+                zoomDp = zoom,
+                scrollDp = scroll,
+                density = density,
+                hitNoteIds = hitNoteIds,
+                pressedKeys = pressedKeys,
+                wrongKeys = wrongKeys,
+            )
         }
     }
 }
@@ -89,6 +137,36 @@ private fun fitZoom(song: Song?, widthDp: Float): Float {
 private fun fitScroll(song: Song?, zoom: Float): Float =
     KeyLayout.left(visibleRange(song).first) * zoom
 
+/** Welche Taste liegt an dieser Bildschirmposition? Schwarze Tasten haben Vorrang. */
+private fun keyAt(
+    x: Float,
+    y: Float,
+    heightPx: Float,
+    density: Float,
+    zoomDp: Float,
+    scrollDp: Float,
+): Int? {
+    val whiteWidth = zoomDp * density
+    val keyboardHeight = min(heightPx * 0.28f, 190f * density)
+    val keysTop = heightPx - keyboardHeight
+    if (y < keysTop) return null
+    val units = (x + scrollDp * density) / whiteWidth
+
+    if (y < keysTop + keyboardHeight * 0.62f) {
+        for (midi in KeyLayout.FIRST_KEY..KeyLayout.LAST_KEY) {
+            if (!KeyLayout.isBlack(midi)) continue
+            val left = KeyLayout.left(midi)
+            if (units >= left && units <= left + KeyLayout.BLACK_KEY_WIDTH) return midi
+        }
+    }
+    for (midi in KeyLayout.FIRST_KEY..KeyLayout.LAST_KEY) {
+        if (KeyLayout.isBlack(midi)) continue
+        val left = KeyLayout.left(midi)
+        if (units >= left && units < left + 1f) return midi
+    }
+    return null
+}
+
 private fun handColor(hand: Hand): Color =
     if (hand == Hand.LEFT) LeftHandColor else RightHandColor
 
@@ -98,6 +176,9 @@ private fun DrawScope.drawRoll(
     zoomDp: Float,
     scrollDp: Float,
     density: Float,
+    hitNoteIds: Set<Int>,
+    pressedKeys: Set<Int>,
+    wrongKeys: Set<Int>,
 ) {
     drawRect(BackgroundColor)
 
@@ -110,7 +191,7 @@ private fun DrawScope.drawRoll(
     fun xOf(midi: Int): Float = KeyLayout.left(midi) * whiteWidth - scroll
     fun widthOf(midi: Int): Float = KeyLayout.width(midi) * whiteWidth
 
-    // Tasten, die gerade klingen sollen, werden in ihrer Hand-Farbe eingefärbt
+    // Tasten, die gerade klingen sollen, werden in der Hand-Farbe eingefärbt
     val activeHand = HashMap<Int, Hand>()
 
     if (song != null) {
@@ -128,7 +209,7 @@ private fun DrawScope.drawRoll(
             if (note.startMs <= positionMs) activeHand[note.midi] = note.hand
 
             drawRoundRect(
-                color = handColor(note.hand),
+                color = if (note.id in hitNoteIds) HitColor else handColor(note.hand),
                 topLeft = Offset(x + 2f * density, top),
                 size = Size(w - 4f * density, max(4f * density, bottom - top)),
                 cornerRadius = corner,
@@ -142,7 +223,7 @@ private fun DrawScope.drawRoll(
         val x = xOf(midi)
         if (x + whiteWidth < 0f || x > size.width) continue
         drawRect(
-            color = activeHand[midi]?.let { handColor(it) } ?: WhiteKeyColor,
+            color = keyColor(midi, black = false, activeHand, pressedKeys, wrongKeys),
             topLeft = Offset(x, keysTop),
             size = Size(whiteWidth - density, keyboardHeight),
         )
@@ -153,7 +234,7 @@ private fun DrawScope.drawRoll(
         val w = widthOf(midi)
         if (x + w < 0f || x > size.width) continue
         drawRect(
-            color = activeHand[midi]?.let { handColor(it) } ?: BlackKeyColor,
+            color = keyColor(midi, black = true, activeHand, pressedKeys, wrongKeys),
             topLeft = Offset(x, keysTop),
             size = Size(w, keyboardHeight * 0.62f),
         )
@@ -166,4 +247,19 @@ private fun DrawScope.drawRoll(
         end = Offset(size.width, keysTop),
         strokeWidth = 2f * density,
     )
+}
+
+/** Rot für falsche Tasten hat Vorrang, dann gedrückte Tasten, dann klingende Noten. */
+private fun keyColor(
+    midi: Int,
+    black: Boolean,
+    activeHand: Map<Int, Hand>,
+    pressedKeys: Set<Int>,
+    wrongKeys: Set<Int>,
+): Color = when {
+    midi in wrongKeys -> WrongColor
+    midi in pressedKeys -> PressedKeyColor
+    activeHand[midi] != null -> handColor(activeHand.getValue(midi))
+    black -> BlackKeyColor
+    else -> WhiteKeyColor
 }

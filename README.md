@@ -7,7 +7,7 @@ dargestellt – wie in Piano-Tutorial-Videos. Linke und rechte Hand sind farblic
 Im Wartemodus läuft das Stück erst weiter, wenn der richtige Ton (bzw. alle Töne eines
 Akkords) gespielt wird.
 
-> **Status:** Schritt 2 von 5 – MIDI-Import, Klaviatur mit fallenden Noten und Abspielmodus.
+> **Status:** Schritt 3 von 5 – USB-MIDI-Eingang, Einstellungen und Rückmeldung (richtig grün, falsch rot).
 > Die Funktionen folgen schrittweise (siehe Abschnitt „Fahrplan“).
 
 ## Fahrplan
@@ -16,7 +16,7 @@ Akkords) gespielt wird.
 |---|---|---|
 | 1 | Projektgerüst, `.gitignore`, README, Beispiel-MIDI, GitHub-Actions-Build der Debug-APK | fertig |
 | 2 | MIDI-Import (Noten, Startzeit, Dauer, Hand/Spur), Klaviatur (88 Tasten, zoom- und scrollbar), fallende Balken, Abspielmodus mit einstellbarem Tempo | fertig |
-| 3 | Eingabe über USB-MIDI (`MidiManager`), Einstellungen (Eingabequelle, Tempo, Hände) | geplant |
+| 3 | Eingabe über USB-MIDI (`MidiManager`), Einstellungen (Eingabequelle, Tempo, Hände), Rückmeldung grün/rot | fertig |
 | 4 | Wartemodus (wartet auf richtigen Ton bzw. Akkord), grün/rot-Rückmeldung | geplant |
 | 5 | Mikrofon-Tonerkennung (YIN), Mikrofon-Empfindlichkeit, Berechtigungsabfrage | geplant |
 
@@ -45,6 +45,25 @@ Geplante Paketstruktur unter `app/src/main/java/app/aipiano/`:
 
 Die Hand-Zuordnung erfolgt automatisch: Hat die Datei mehrere Spuren, gilt eine Spur mit
 mittlerer Tonhöhe unter C4 als linke Hand. Bei nur einer Spur entscheidet die Tonhöhe je Note.
+
+## Eingabe und Einstellungen (Stand Schritt 3)
+
+Über **Einstellungen** (Button oben im Hauptbildschirm):
+
+- **Eingabequelle**
+  - *USB-MIDI-Keyboard:* Note-On/Note-Off eines angeschlossenen Keyboards über `android.media.midi`.
+    Das Keyboard wird automatisch übernommen, auch wenn es erst nach dem Start angesteckt wird.
+    Berechtigung: Für USB-MIDI fragt Android keine Laufzeit-Berechtigung ab. Benötigt werden ein
+    USB-Host-fähiges Handy und ein OTG-Adapter.
+  - *Bildschirmtasten (zum Testen):* Die Klaviatur am unteren Rand kann direkt angetippt werden.
+    So lässt sich die Übung auch ohne Keyboard ausprobieren.
+  - *Mikrofon:* folgt in Schritt 5.
+- **Tempo** wird gespeichert und gilt auch im Hauptbildschirm.
+- **Zu übende Hände:** beide, nur links oder nur rechts. Die andere Hand läuft im Takt mit.
+
+Rückmeldung: Trifft die Eingabe eine Note im Zeitfenster von ±350 ms, wird der Balken **grün**
+und die Taste leuchtet. Eine falsche Taste leuchtet **rot**. Der Zähler „Richtig / Falsch“ zeigt
+das Ergebnis. Der Wartemodus (Stück hält an, bis die richtige Taste kommt) folgt in Schritt 4.
 
 ## Beispiel-MIDI zum Testen
 

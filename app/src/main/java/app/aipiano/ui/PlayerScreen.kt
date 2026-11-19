@@ -21,10 +21,14 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import app.aipiano.settings.InputSourceType
 import kotlin.math.roundToInt
 
 @Composable
-fun PlayerScreen(viewModel: PlayerViewModel = viewModel()) {
+fun PlayerScreen(
+    onOpenSettings: () -> Unit,
+    viewModel: PlayerViewModel = viewModel(),
+) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val openFile = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) viewModel.loadSong(uri)
@@ -41,6 +45,7 @@ fun PlayerScreen(viewModel: PlayerViewModel = viewModel()) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Button(onClick = { openFile.launch(arrayOf("*/*")) }) { Text("MIDI öffnen") }
             OutlinedButton(onClick = viewModel::loadSample) { Text("Beispiel") }
+            OutlinedButton(onClick = onOpenSettings) { Text("Einstellungen") }
         }
 
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -56,6 +61,15 @@ fun PlayerScreen(viewModel: PlayerViewModel = viewModel()) {
             onValueChange = { viewModel.setTempo(it.roundToInt()) },
             valueRange = 50f..150f,
             steps = 19,
+        )
+
+        Text(
+            "Eingabe: ${state.inputStatus}",
+            style = MaterialTheme.typography.bodySmall,
+        )
+        Text(
+            "Richtig: ${state.correctCount} · Falsch: ${state.wrongCount}",
+            style = MaterialTheme.typography.bodySmall,
         )
 
         if (song != null) {
@@ -76,12 +90,22 @@ fun PlayerScreen(viewModel: PlayerViewModel = viewModel()) {
         Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
             Text("■ Linke Hand", color = LeftHandColor, style = MaterialTheme.typography.labelLarge)
             Text("■ Rechte Hand", color = RightHandColor, style = MaterialTheme.typography.labelLarge)
-            Text("Zoom: Pinch · Verschieben: Wischen", color = Color.Gray, style = MaterialTheme.typography.labelSmall)
+            Text("■ Richtig", color = HitColor, style = MaterialTheme.typography.labelLarge)
+            Text("■ Falsch", color = WrongColor, style = MaterialTheme.typography.labelLarge)
         }
+        Text(
+            "Zoom: Pinch · Verschieben: Wischen",
+            color = Color.Gray,
+            style = MaterialTheme.typography.labelSmall,
+        )
 
         PianoRoll(
             song = song,
             positionMs = state.positionMs,
+            hitNoteIds = state.hitNoteIds,
+            pressedKeys = state.pressedKeys,
+            wrongKeys = state.wrongKeys,
+            onKey = if (state.inputSource == InputSourceType.VIRTUAL) viewModel::onVirtualKey else null,
             modifier = Modifier
                 .weight(1f)
                 .fillMaxWidth(),
