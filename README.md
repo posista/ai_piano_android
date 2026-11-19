@@ -7,7 +7,7 @@ dargestellt – wie in Piano-Tutorial-Videos. Linke und rechte Hand sind farblic
 Im Wartemodus läuft das Stück erst weiter, wenn der richtige Ton (bzw. alle Töne eines
 Akkords) gespielt wird.
 
-> **Status:** Schritt 1 von 5 – Grundgerüst, Gradle-Projekt und automatischer APK-Build.
+> **Status:** Schritt 2 von 5 – MIDI-Import, Klaviatur mit fallenden Noten und Abspielmodus.
 > Die Funktionen folgen schrittweise (siehe Abschnitt „Fahrplan“).
 
 ## Fahrplan
@@ -15,7 +15,7 @@ Akkords) gespielt wird.
 | Schritt | Inhalt | Status |
 |---|---|---|
 | 1 | Projektgerüst, `.gitignore`, README, Beispiel-MIDI, GitHub-Actions-Build der Debug-APK | fertig |
-| 2 | MIDI-Import (Noten, Startzeit, Dauer, Hand/Spur), Klaviatur (61+ Tasten, zoom- und scrollbar), fallende Balken, Abspielmodus mit einstellbarem Tempo | geplant |
+| 2 | MIDI-Import (Noten, Startzeit, Dauer, Hand/Spur), Klaviatur (88 Tasten, zoom- und scrollbar), fallende Balken, Abspielmodus mit einstellbarem Tempo | fertig |
 | 3 | Eingabe über USB-MIDI (`MidiManager`), Einstellungen (Eingabequelle, Tempo, Hände) | geplant |
 | 4 | Wartemodus (wartet auf richtigen Ton bzw. Akkord), grün/rot-Rückmeldung | geplant |
 | 5 | Mikrofon-Tonerkennung (YIN), Mikrofon-Empfindlichkeit, Berechtigungsabfrage | geplant |
@@ -32,6 +32,19 @@ Geplante Paketstruktur unter `app/src/main/java/app/aipiano/`:
 | `player` | Wiedergabe- und Wartelogik (ohne Android-Abhängigkeiten, daher testbar) |
 | `settings` | Einstellungen (DataStore) |
 | `ui` | Compose-Oberfläche und ViewModels (MVVM) |
+
+## Bedienung (Stand Schritt 2)
+
+- **MIDI öffnen:** lädt eine `.mid`-Datei aus dem Dateisystem des Handys.
+- **Beispiel:** lädt die mitgelieferte Beispiel-Datei.
+- **Abspielen / Pause / Neustart:** steuert die Wiedergabe.
+- **Tempo:** 50 bis 150 Prozent der Originalgeschwindigkeit.
+- **Zoom und Scroll:** zwei Finger zum Zoomen, mit einem Finger wischen zum Verschieben.
+- Balken über der Klaviatur: orange = rechte Hand, blau = linke Hand. Eine Taste leuchtet,
+  solange die zugehörige Note gespielt werden soll.
+
+Die Hand-Zuordnung erfolgt automatisch: Hat die Datei mehrere Spuren, gilt eine Spur mit
+mittlerer Tonhöhe unter C4 als linke Hand. Bei nur einer Spur entscheidet die Tonhöhe je Note.
 
 ## Beispiel-MIDI zum Testen
 
@@ -56,7 +69,7 @@ python3 tools/make_sample_midi.py app/src/main/assets/samples/ode_an_die_freude.
 ### Variante B: Lokal mit Android Studio
 
 1. Repository klonen: `git clone https://github.com/posista/ai_piano_android`
-2. Ordner in Android Studio öffnen (Ladbar: JDK 17 ist eingebaut in neueren Versionen).
+2. Ordner in Android Studio öffnen (Android Studio bringt ein passendes JDK mit).
 3. Warten, bis die Gradle-Synchronisierung fertig ist.
 4. **Build → Build Bundle(s) / APK(s) → Build APK(s)** wählen.
 
