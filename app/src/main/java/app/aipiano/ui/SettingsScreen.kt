@@ -151,8 +151,13 @@ fun SettingsScreen(
                 onSelect = { viewModel.update { it.copy(practiceHands = hands) } },
             )
         }
+        SwitchRow(
+            label = "Andere Hand hörbar",
+            checked = settings.otherHandSound,
+            onChange = { value -> viewModel.update { it.copy(otherHandSound = value) } },
+        )
         Text(
-            "Die nicht geübte Hand läuft im Takt der Musik mit.",
+            "Die nicht geübte Hand läuft immer im Takt der Musik mit. Ist der Schalter aus, bleibt sie stumm.",
             style = MaterialTheme.typography.bodySmall,
         )
     }

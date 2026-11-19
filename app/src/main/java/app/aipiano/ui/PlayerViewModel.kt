@@ -49,6 +49,7 @@ data class PlayerUiState(
     val micSensitivity: Float = 0.6f,
     val soundOn: Boolean = true,
     val chordsTogether: Boolean = true,
+    val otherHandSound: Boolean = true,
     val inputSource: InputSourceType = InputSourceType.USB_MIDI,
     val inputStatus: String = "",
     /** Ids der Noten, die richtig gespielt wurden (werden grün). */
@@ -108,6 +109,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                 micSensitivity = settings.micSensitivity,
                 soundOn = settings.soundOn,
                 chordsTogether = settings.chordsTogether,
+                otherHandSound = settings.otherHandSound,
                 inputSource = settings.inputSource,
             )
         }
@@ -417,6 +419,21 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    /** Übungsmodus wählen: beide Hände, nur links oder nur rechts. Wird gespeichert. */
+    fun setPracticeHands(hands: PracticeHands) {
+        viewModelScope.launch {
+            settingsRepository.save(settingsRepository.settings.first().copy(practiceHands = hands))
+        }
+    }
+
+    /** Schaltet die Hörbarkeit der nicht geübten Hand an oder aus und speichert die Wahl. */
+    fun toggleOtherHandSound() {
+        viewModelScope.launch {
+            val current = settingsRepository.settings.first()
+            settingsRepository.save(current.copy(otherHandSound = !current.otherHandSound))
+        }
+    }
+
     /** Schaltet die Tonausgabe an oder aus und speichert die Wahl. */
     fun toggleSound() {
         viewModelScope.launch {
@@ -498,7 +515,12 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         while (nextSoundIndex < song.notes.size && song.notes[nextSoundIndex].startMs <= positionMs) {
             val note = song.notes[nextSoundIndex]
             nextSoundIndex++
-            val audible = !current.waitMode || !current.practiceHands.includes(note.hand)
+            // Geübte Noten klingen nur im Abspielmodus, die andere Hand nur wenn "andere Hand hörbar" an ist
+            val audible = if (current.practiceHands.includes(note.hand)) {
+                !current.waitMode
+            } else {
+                current.otherHandSound
+            }
             if (audible) {
                 synth.noteOn("song-${note.id}", note.midi, note.velocity)
                 songSounding += note

@@ -212,4 +212,16 @@ class PlayerViewModelReviewTest {
         assertEquals(1, vm.state.value.correctCount)
         assertEquals(0, vm.state.value.wrongCount)
     }
+
+    /** Übungsmodus "nur links": das Stück wartet nur auf linke Töne, rechte Töne laufen mit. */
+    @Test
+    fun practiceLeftHandWaitsOnlyForLeftHand() {
+        val vm = createVm(base.copy(practiceHands = PracticeHands.LEFT))
+        vm.play()
+        vm.advanceUntilWaiting() // Anfangsakkord C3 E3 G3, E4 der rechten Hand wird nicht verlangt
+        assertEquals(setOf(48, 52, 55), vm.waitingKeys())
+        vm.waitingKeys().forEach { vm.tap(it) }
+        vm.advanceUntilWaiting() // nächster linker Akkord bei 2000 ms
+        assertEquals(setOf(43, 47, 50), vm.waitingKeys())
+    }
 }

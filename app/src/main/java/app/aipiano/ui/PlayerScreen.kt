@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Slider
@@ -32,6 +33,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import app.aipiano.settings.InputSourceType
+import app.aipiano.settings.PracticeHands
 import kotlin.math.roundToInt
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -77,6 +79,24 @@ fun PlayerScreen(
             }
             OutlinedButton(onClick = viewModel::toggleSound) {
                 Text(if (state.soundOn) "Ton: an" else "Ton: aus")
+            }
+        }
+
+        // Übungsmodus: welche Hand gespielt werden muss
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Text("Üben:", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 8.dp))
+            PracticeHands.entries.forEach { hands ->
+                FilterChip(
+                    selected = state.practiceHands == hands,
+                    onClick = { viewModel.setPracticeHands(hands) },
+                    label = { Text(hands.shortLabel) },
+                )
+            }
+            OutlinedButton(onClick = viewModel::toggleOtherHandSound) {
+                Text(if (state.otherHandSound) "Andere Hand: Ton an" else "Andere Hand: stumm")
             }
         }
 
@@ -162,6 +182,7 @@ fun PlayerScreen(
                     pressedKeys = state.pressedKeys,
                     wrongKeys = state.wrongKeys,
                     onKey = onKey,
+                    practiceHands = state.practiceHands,
                     modifier = Modifier.weight(0.6f).fillMaxHeight(),
                 )
             }
@@ -178,12 +199,21 @@ fun PlayerScreen(
                     pressedKeys = state.pressedKeys,
                     wrongKeys = state.wrongKeys,
                     onKey = onKey,
+                    practiceHands = state.practiceHands,
                     modifier = Modifier.weight(1f).fillMaxWidth(),
                 )
             }
         }
     }
 }
+
+/** Kurzbezeichnung für die Übungsauswahl im Hauptbildschirm. */
+private val PracticeHands.shortLabel: String
+    get() = when (this) {
+        PracticeHands.BOTH -> "Beide"
+        PracticeHands.LEFT -> "Nur links"
+        PracticeHands.RIGHT -> "Nur rechts"
+    }
 
 private val NoteNames = arrayOf("C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B")
 

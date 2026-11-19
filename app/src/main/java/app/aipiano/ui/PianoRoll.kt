@@ -22,6 +22,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import app.aipiano.midi.Hand
 import app.aipiano.midi.Song
+import app.aipiano.settings.PracticeHands
 import kotlin.math.max
 import kotlin.math.min
 
@@ -58,6 +59,7 @@ fun PianoRoll(
     pressedKeys: Set<Int> = emptySet(),
     wrongKeys: Set<Int> = emptySet(),
     onKey: ((midi: Int, down: Boolean) -> Unit)? = null,
+    practiceHands: PracticeHands = PracticeHands.BOTH,
 ) {
     val density = LocalDensity.current.density
     BoxWithConstraints(modifier = modifier.background(BackgroundColor).clipToBounds()) {
@@ -129,6 +131,7 @@ fun PianoRoll(
                 hitNoteIds = hitNoteIds,
                 pressedKeys = pressedKeys,
                 wrongKeys = wrongKeys,
+                practiceHands = practiceHands,
             )
         }
     }
@@ -192,6 +195,7 @@ private fun DrawScope.drawRoll(
     hitNoteIds: Set<Int>,
     pressedKeys: Set<Int>,
     wrongKeys: Set<Int>,
+    practiceHands: PracticeHands,
 ) {
     drawRect(BackgroundColor)
 
@@ -221,8 +225,10 @@ private fun DrawScope.drawRoll(
             val bottom = keysTop - ((note.startMs - positionMs) * pxPerMs).toFloat()
             if (note.startMs <= positionMs) activeHand[note.midi] = note.hand
 
+            // Nicht geübte Hand wird blasser gezeichnet, damit man die aktive Hand sofort sieht
             drawRoundRect(
                 color = if (note.id in hitNoteIds) HitColor else handColor(note.hand),
+                alpha = if (practiceHands.includes(note.hand)) 1f else 0.35f,
                 topLeft = Offset(x + 2f * density, top),
                 size = Size(w - 4f * density, max(4f * density, bottom - top)),
                 cornerRadius = corner,

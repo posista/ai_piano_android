@@ -34,4 +34,6 @@ data class AppSettings(
     val soundOn: Boolean = true,
     /** Akkordtöne müssen gleichzeitig gehalten werden. Mit dem Mikrofon automatisch aus. */
     val chordsTogether: Boolean = true,
+    /** Die nicht geübte Hand ist hörbar (sonst bleibt sie stumm, läuft aber sichtbar mit). */
+    val otherHandSound: Boolean = true,
 )
