@@ -7,7 +7,7 @@ dargestellt – wie in Piano-Tutorial-Videos. Linke und rechte Hand sind farblic
 Im Wartemodus läuft das Stück erst weiter, wenn der richtige Ton (bzw. alle Töne eines
 Akkords) gespielt wird.
 
-> **Status:** Schritt 3 von 5 – USB-MIDI-Eingang, Einstellungen und Rückmeldung (richtig grün, falsch rot).
+> **Status:** Schritt 4 von 5 – Wartemodus, USB-MIDI-Eingang, Einstellungen und Rückmeldung (richtig grün, falsch rot).
 > Die Funktionen folgen schrittweise (siehe Abschnitt „Fahrplan“).
 
 ## Fahrplan
@@ -17,7 +17,7 @@ Akkords) gespielt wird.
 | 1 | Projektgerüst, `.gitignore`, README, Beispiel-MIDI, GitHub-Actions-Build der Debug-APK | fertig |
 | 2 | MIDI-Import (Noten, Startzeit, Dauer, Hand/Spur), Klaviatur (88 Tasten, zoom- und scrollbar), fallende Balken, Abspielmodus mit einstellbarem Tempo | fertig |
 | 3 | Eingabe über USB-MIDI (`MidiManager`), Einstellungen (Eingabequelle, Tempo, Hände), Rückmeldung grün/rot | fertig |
-| 4 | Wartemodus (wartet auf richtigen Ton bzw. Akkord), grün/rot-Rückmeldung | geplant |
+| 4 | Wartemodus (wartet auf richtigen Ton bzw. Akkord), grün/rot-Rückmeldung | fertig |
 | 5 | Mikrofon-Tonerkennung (YIN), Mikrofon-Empfindlichkeit, Berechtigungsabfrage | geplant |
 
 ## Projektstruktur
@@ -63,7 +63,19 @@ mittlerer Tonhöhe unter C4 als linke Hand. Bei nur einer Spur entscheidet die T
 
 Rückmeldung: Trifft die Eingabe eine Note im Zeitfenster von ±350 ms, wird der Balken **grün**
 und die Taste leuchtet. Eine falsche Taste leuchtet **rot**. Der Zähler „Richtig / Falsch“ zeigt
-das Ergebnis. Der Wartemodus (Stück hält an, bis die richtige Taste kommt) folgt in Schritt 4.
+das Ergebnis.
+
+## Modi (Stand Schritt 4)
+
+- **Wartemodus** (Standard): Bevor eine geübte Note beginnt, hält das Stück an. Es läuft erst
+  weiter, wenn die richtige Taste gespielt wird. Bei einem Akkord müssen alle Töne gleichzeitig
+  gedrückt werden, die Töne können nacheinander kommen, solange sie innerhalb des Zeitfensters liegen.
+  Der Hinweis „Warte auf: C4 + E4 + G4“ zeigt, was gerade fehlt.
+- **Abspielmodus:** Das Stück läuft im eingestellten Tempo weiter, unabhängig von der Eingabe.
+  Richtige und falsche Töne werden trotzdem gezählt und farbig markiert.
+
+Umschalten geht über den Button „Modus“ im Hauptbildschirm oder in den Einstellungen.
+Die nicht geübte Hand läuft in beiden Modi im Takt mit.
 
 ## Beispiel-MIDI zum Testen
 

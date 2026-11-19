@@ -26,4 +26,6 @@ data class AppSettings(
     val inputSource: InputSourceType = InputSourceType.USB_MIDI,
     val tempoPercent: Int = 100,
     val practiceHands: PracticeHands = PracticeHands.BOTH,
+    /** true = Wartemodus (Stück hält an, bis richtig gespielt), false = Abspielmodus. */
+    val waitMode: Boolean = true,
 )

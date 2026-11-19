@@ -53,6 +53,9 @@ fun PlayerScreen(
                 Text(if (state.playing) "Pause" else "Abspielen")
             }
             OutlinedButton(onClick = viewModel::restart, enabled = song != null) { Text("Neustart") }
+            OutlinedButton(onClick = viewModel::toggleWaitMode) {
+                Text(if (state.waitMode) "Modus: Warten" else "Modus: Abspielen")
+            }
         }
 
         Text("Tempo: ${state.tempoPercent} %", style = MaterialTheme.typography.bodyMedium)
@@ -85,6 +88,19 @@ fun PlayerScreen(
             )
         }
 
+        if (state.waitingForIds.isNotEmpty() && song != null) {
+            val waitingNames = song.notes
+                .filter { it.id in state.waitingForIds }
+                .map { noteName(it.midi) }
+                .distinct()
+                .joinToString(" + ")
+            Text(
+                "Warte auf: $waitingNames",
+                color = WrongColor,
+                style = MaterialTheme.typography.titleMedium,
+            )
+        }
+
         state.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
 
         Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -112,6 +128,11 @@ fun PlayerScreen(
         )
     }
 }
+
+private val NoteNames = arrayOf("C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B")
+
+/** Notenname mit Oktave nach wissenschaftlicher Notation, z. B. 60 = C4. */
+private fun noteName(midi: Int): String = "${NoteNames[midi % 12]}${midi / 12 - 1}"
 
 private fun formatTime(ms: Long): String {
     val totalSeconds = ms / 1000

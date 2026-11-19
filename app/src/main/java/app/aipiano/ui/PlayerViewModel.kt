@@ -41,10 +41,13 @@ data class PlayerUiState(
     val playing: Boolean = false,
     val tempoPercent: Int = 100,
     val practiceHands: PracticeHands = PracticeHands.BOTH,
+    val waitMode: Boolean = true,
     val inputSource: InputSourceType = InputSourceType.USB_MIDI,
     val inputStatus: String = "",
     /** Ids der Noten, die richtig gespielt wurden (werden grün). */
     val hitNoteIds: Set<Int> = emptySet(),
+    /** Noten, auf die im Wartemodus gerade gewartet wird. Solange nicht leer, steht das Stück. */
+    val waitingForIds: Set<Int> = emptySet(),
     /** Tasten, die gerade gedrückt sind. */
     val pressedKeys: Set<Int> = emptySet(),
     /** Tasten, die kurz rot markiert sind, weil sie falsch waren. */
@@ -55,7 +58,7 @@ data class PlayerUiState(
 )
 
 /**
- * Hält das geladene Stück, die Wiedergabeposition und die Eingabe-Auswertung.
+ * Hält das geladene Stück, die Wiedergabeposition, den Wartemodus und die Auswertung der Eingabe.
  * Die UI beobachtet nur [state] (MVVM).
  */
 class PlayerViewModel(application: Application) : AndroidViewModel(application) {
@@ -68,6 +71,9 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     private var activeType: InputSourceType? = null
     private val sourceJobs = mutableListOf<Job>()
     private var clockJob: Job? = null
+
+    /** Zeitpunkte (ms), an denen geübte Noten beginnen. Der Wartemodus hält dort an. */
+    private var checkpoints = LongArray(0)
 
     private val _state = MutableStateFlow(PlayerUiState())
     val state: StateFlow<PlayerUiState> = _state.asStateFlow()
@@ -83,10 +89,33 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             it.copy(
                 tempoPercent = settings.tempoPercent,
                 practiceHands = settings.practiceHands,
+                waitMode = settings.waitMode,
                 inputSource = settings.inputSource,
             )
         }
+        refreshCheckpoints(_state.value.song, settings.practiceHands)
         if (settings.inputSource != activeType) switchSource(settings.inputSource)
+    }
+
+    private fun refreshCheckpoints(song: Song?, hands: PracticeHands) {
+        checkpoints = song?.notes
+            ?.filter { hands.includes(it.hand) }
+            ?.map { it.startMs }
+            ?.distinct()
+            ?.sorted()
+            ?.toLongArray()
+            ?: LongArray(0)
+    }
+
+    /** Erster Zeitpunkt nach [positionMs], an dem der Wartemodus anhalten würde. */
+    private fun nextCheckpointAfter(positionMs: Double): Long? {
+        var low = 0
+        var high = checkpoints.size
+        while (low < high) {
+            val mid = (low + high) ushr 1
+            if (checkpoints[mid] <= positionMs) low = mid + 1 else high = mid
+        }
+        return checkpoints.getOrNull(low)
     }
 
     private fun switchSource(type: InputSourceType) {
@@ -138,6 +167,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             _state.update {
                 it.copy(
                     hitNoteIds = it.hitNoteIds + match,
+                    waitingForIds = it.waitingForIds - match,
                     pressedKeys = it.pressedKeys + event.midi,
                     correctCount = it.correctCount + 1,
                 )
@@ -200,12 +230,14 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             result
                 .onSuccess { song ->
                     pause()
+                    refreshCheckpoints(song, _state.value.practiceHands)
                     _state.update {
                         it.copy(
                             song = song,
                             positionMs = 0.0,
                             error = null,
                             hitNoteIds = emptySet(),
+                            waitingForIds = emptySet(),
                             wrongKeys = emptySet(),
                             correctCount = 0,
                             wrongCount = 0,
@@ -250,7 +282,13 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     fun restart() {
         pause()
         _state.update {
-            it.copy(positionMs = 0.0, hitNoteIds = emptySet(), correctCount = 0, wrongCount = 0)
+            it.copy(
+                positionMs = 0.0,
+                hitNoteIds = emptySet(),
+                waitingForIds = emptySet(),
+                correctCount = 0,
+                wrongCount = 0,
+            )
         }
     }
 
@@ -263,10 +301,31 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    /** Wechselt zwischen Wartemodus und Abspielmodus und speichert die Wahl. */
+    fun toggleWaitMode() {
+        viewModelScope.launch {
+            val current = settingsRepository.settings.first()
+            settingsRepository.save(current.copy(waitMode = !current.waitMode))
+        }
+    }
+
     private fun advance(deltaMs: Double) {
         val current = _state.value
         val song = current.song ?: return
+        // Im Wartemodus steht das Stück, bis alle Töne des aktuellen Anschlags gespielt sind
+        if (current.waitingForIds.isNotEmpty()) return
+
         val next = current.positionMs + deltaMs * current.tempoPercent / 100.0
+        val checkpoint = if (current.waitMode) nextCheckpointAfter(current.positionMs) else null
+        if (checkpoint != null && next >= checkpoint) {
+            val pending = song.notes
+                .filter { it.startMs == checkpoint && current.practiceHands.includes(it.hand) && it.id !in current.hitNoteIds }
+                .map { it.id }
+                .toSet()
+            _state.update { it.copy(positionMs = checkpoint.toDouble(), waitingForIds = pending) }
+            return
+        }
+
         if (next >= song.durationMs) {
             pause()
             _state.update { it.copy(positionMs = song.durationMs.toDouble()) }

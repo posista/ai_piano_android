@@ -72,6 +72,18 @@ fun SettingsScreen(
             steps = 19,
         )
 
+        SectionTitle("Modus")
+        ChoiceRow(
+            label = "Wartemodus: Das Stück hält an, bis die richtige Taste gespielt wird",
+            selected = settings.waitMode,
+            onSelect = { viewModel.update { it.copy(waitMode = true) } },
+        )
+        ChoiceRow(
+            label = "Abspielmodus: Das Stück läuft im eingestellten Tempo weiter",
+            selected = !settings.waitMode,
+            onSelect = { viewModel.update { it.copy(waitMode = false) } },
+        )
+
         SectionTitle("Zu übende Hände")
         PracticeHands.entries.forEach { hands ->
             ChoiceRow(
