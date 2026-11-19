@@ -3,27 +3,38 @@ package app.aipiano.ui
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.systemBarsPadding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import app.aipiano.settings.InputSourceType
 import kotlin.math.roundToInt
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun PlayerScreen(
     onOpenSettings: () -> Unit,
@@ -35,20 +46,28 @@ fun PlayerScreen(
     }
     val song = state.song
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .systemBarsPadding()
-            .padding(horizontal = 16.dp, vertical = 8.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    // Beim Verlassen der App anhalten, Mikrofon und Ton freigeben
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_START -> viewModel.onAppStarted()
+                Lifecycle.Event.ON_STOP -> viewModel.onAppStopped()
+                else -> Unit
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
+    val controls: @Composable () -> Unit = {
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
             Button(onClick = { openFile.launch(arrayOf("*/*")) }) { Text("MIDI öffnen") }
             OutlinedButton(onClick = viewModel::loadSample) { Text("Beispiel") }
             OutlinedButton(onClick = onOpenSettings) { Text("Einstellungen") }
-        }
-
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Button(onClick = viewModel::togglePlay, enabled = song != null) {
                 Text(if (state.playing) "Pause" else "Abspielen")
             }
@@ -65,14 +84,12 @@ fun PlayerScreen(
         Slider(
             value = state.tempoPercent.toFloat(),
             onValueChange = { viewModel.setTempo(it.roundToInt()) },
+            onValueChangeFinished = viewModel::saveTempo,
             valueRange = 50f..150f,
             steps = 19,
         )
 
-        Text(
-            "Eingabe: ${state.inputStatus}",
-            style = MaterialTheme.typography.bodySmall,
-        )
+        Text("Eingabe: ${state.inputStatus}", style = MaterialTheme.typography.bodySmall)
         Text(
             "Richtig: ${state.correctCount} · Falsch: ${state.wrongCount}",
             style = MaterialTheme.typography.bodySmall,
@@ -106,7 +123,7 @@ fun PlayerScreen(
 
         state.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
 
-        Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Text("■ Linke Hand", color = LeftHandColor, style = MaterialTheme.typography.labelLarge)
             Text("■ Rechte Hand", color = RightHandColor, style = MaterialTheme.typography.labelLarge)
             Text("■ Richtig", color = HitColor, style = MaterialTheme.typography.labelLarge)
@@ -117,18 +134,54 @@ fun PlayerScreen(
             color = Color.Gray,
             style = MaterialTheme.typography.labelSmall,
         )
+    }
 
-        PianoRoll(
-            song = song,
-            positionMs = state.positionMs,
-            hitNoteIds = state.hitNoteIds,
-            pressedKeys = state.pressedKeys,
-            wrongKeys = state.wrongKeys,
-            onKey = if (state.inputSource == InputSourceType.VIRTUAL) viewModel::onVirtualKey else null,
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxWidth(),
-        )
+    val onKey = if (state.inputSource == InputSourceType.VIRTUAL) viewModel::onVirtualKey else null
+
+    BoxWithConstraints(Modifier.fillMaxSize().systemBarsPadding()) {
+        val landscape = maxWidth > maxHeight
+        if (landscape) {
+            // Querformat: Bedienung links (scrollbar), Notenfläche rechts über die volle Höhe
+            Row(
+                modifier = Modifier.fillMaxSize().padding(8.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Column(
+                    modifier = Modifier
+                        .weight(0.4f)
+                        .fillMaxHeight()
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    controls()
+                }
+                PianoRoll(
+                    song = song,
+                    positionMs = state.positionMs,
+                    hitNoteIds = state.hitNoteIds,
+                    pressedKeys = state.pressedKeys,
+                    wrongKeys = state.wrongKeys,
+                    onKey = onKey,
+                    modifier = Modifier.weight(0.6f).fillMaxHeight(),
+                )
+            }
+        } else {
+            Column(
+                modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                controls()
+                PianoRoll(
+                    song = song,
+                    positionMs = state.positionMs,
+                    hitNoteIds = state.hitNoteIds,
+                    pressedKeys = state.pressedKeys,
+                    wrongKeys = state.wrongKeys,
+                    onKey = onKey,
+                    modifier = Modifier.weight(1f).fillMaxWidth(),
+                )
+            }
+        }
     }
 }
 

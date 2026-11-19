@@ -15,6 +15,7 @@ private const val DEFAULT_TEMPO_US = 500_000 // 120 BPM, wenn die Datei kein Tem
 object MidiParser {
 
     private const val SPLIT_KEY = 60
+    private const val DRUM_CHANNEL = 9
 
     private class RawNote(
         val startTick: Long,
@@ -138,6 +139,8 @@ object MidiParser {
         val open = HashMap<Int, ArrayDeque<Pair<Long, Int>>>()
 
         fun noteOn(channel: Int, key: Int, velocity: Int) {
+            // Kanal 10 (Index 9) ist Schlagzeug und wird nicht als Klaviernote gezeigt
+            if (channel == DRUM_CHANNEL) return
             open.getOrPut(channel * 128 + key) { ArrayDeque() }.addLast(tick to velocity)
         }
 

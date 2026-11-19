@@ -19,7 +19,8 @@ import kotlin.math.sqrt
  *
  * Nur einstimmig: Akkorde lassen sich mit einem Mikrofon nicht trennen. Eine Note gilt als
  * gespielt, wenn dieselbe Tonhöhe in zwei aufeinanderfolgenden Fenstern erkannt wird; sie
- * endet, wenn es still wird oder ein anderer Ton erkannt wird.
+ * endet, wenn es still wird oder ein anderer Ton erkannt wird. Ein neuer Anschlag desselben
+ * Tons (ohne Pause dazwischen) wird über einen Lautstärkesprung erkannt.
  *
  * Die Berechtigung RECORD_AUDIO muss vor dem Start erteilt sein (siehe [hasRecordAudioPermission]).
  *
@@ -35,13 +36,17 @@ class MicrophoneInputSource(private val sensitivity: () -> Float) : NoteInputSou
 
     @Volatile
     private var running = false
-    private var thread: Thread? = null
+
+    /** Jeder Start bekommt eine neue Sitzungsnummer. Alte Aufnahmeschleifen beenden sich dann selbst. */
+    @Volatile
+    private var session = 0
 
     override fun start() {
         if (running) return
         running = true
+        val mySession = ++session
         _status.value = "Mikrofon: startet …"
-        thread = Thread { captureLoop() }.apply {
+        Thread { captureLoop(mySession) }.apply {
             name = "mic-pitch"
             isDaemon = true
             start()
@@ -50,12 +55,22 @@ class MicrophoneInputSource(private val sensitivity: () -> Float) : NoteInputSou
 
     override fun stop() {
         running = false
-        thread = null
+        session++
         _status.value = "Mikrofon: gestoppt"
     }
 
     @SuppressLint("MissingPermission") // Berechtigung wird vor dem Start geprüft
-    private fun captureLoop() {
+    private fun captureLoop(mySession: Int) {
+        try {
+            captureWhileCurrent(mySession)
+        } catch (e: Exception) {
+            if (session == mySession) fail("Mikrofon-Fehler: ${e.message ?: e::class.java.simpleName}")
+        }
+    }
+
+    private fun captureWhileCurrent(mySession: Int) {
+        fun current() = running && session == mySession
+
         val minBuffer = AudioRecord.getMinBufferSize(SAMPLE_RATE, CHANNEL, ENCODING)
         if (minBuffer <= 0) {
             fail("Mikrofon: Audio-Format wird nicht unterstützt")
@@ -81,13 +96,19 @@ class MicrophoneInputSource(private val sensitivity: () -> Float) : NoteInputSou
         var candidate: Int? = null
         var candidateFrames = 0
         var silentFrames = 0
+        var lastLevel = 0f
 
         try {
             record.startRecording()
+            if (!current()) return
             _status.value = "Mikrofon aktiv (einstimmig)"
-            while (running) {
+            while (current()) {
                 val read = record.read(chunk, 0, HOP_SIZE)
-                if (read <= 0) continue
+                if (read < 0) {
+                    fail("Mikrofon: Lesefehler $read")
+                    break
+                }
+                if (read == 0) continue
 
                 // Fenster um einen Abschnitt nach links schieben und neue Samples anhängen
                 System.arraycopy(window, HOP_SIZE, window, 0, FRAME_SIZE - HOP_SIZE)
@@ -109,6 +130,7 @@ class MicrophoneInputSource(private val sensitivity: () -> Float) : NoteInputSou
                         emit(currentMidi, velocity = 0, isOn = false)
                         currentMidi = null
                     }
+                    lastLevel = level
                     continue
                 }
 
@@ -119,11 +141,14 @@ class MicrophoneInputSource(private val sensitivity: () -> Float) : NoteInputSou
                     candidate = midi
                     candidateFrames = 1
                 }
-                if (candidateFrames >= CONFIRM_FRAMES && midi != currentMidi) {
+                // Neuer Anschlag desselben Tons: Lautstärke springt deutlich an
+                val retrigger = midi == currentMidi && level > lastLevel * RETRIGGER_RATIO
+                if (candidateFrames >= CONFIRM_FRAMES && (midi != currentMidi || retrigger)) {
                     currentMidi?.let { emit(it, velocity = 0, isOn = false) }
                     emit(midi, velocity = velocityFor(level), isOn = true)
                     currentMidi = midi
                 }
+                lastLevel = level
             }
         } finally {
             currentMidi?.let { emit(it, velocity = 0, isOn = false) }
@@ -156,6 +181,8 @@ class MicrophoneInputSource(private val sensitivity: () -> Float) : NoteInputSou
         /** So viele aufeinanderfolgende Fenster muss dieselbe Tonhöhe haben (≈ 46 ms je Fenster). */
         const val CONFIRM_FRAMES = 2
         const val SILENCE_FRAMES = 2
+        /** Lautstärkesprung von diesem Faktor gilt als neuer Anschlag. */
+        const val RETRIGGER_RATIO = 2.5f
         const val MIN_MIDI = 21
         const val MAX_MIDI = 108
 

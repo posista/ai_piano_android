@@ -53,7 +53,7 @@ class NoteSynth(private val sampleRate: Int = SAMPLE_RATE) {
             if (releasing && envelope < SILENCE || age > MAX_AGE_S * sampleRate) finished = true
 
             val wave = sin(phase) + 0.45 * sin(2 * phase) + 0.2 * sin(3 * phase)
-            return wave * envelope * velocity * 0.35
+            return wave * envelope * velocity * 0.25
         }
     }
 

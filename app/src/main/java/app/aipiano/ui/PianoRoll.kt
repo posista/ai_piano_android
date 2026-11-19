@@ -2,7 +2,6 @@ package app.aipiano.ui
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxSize
@@ -16,7 +15,9 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.input.pointer.PointerId
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import app.aipiano.midi.Hand
@@ -59,7 +60,7 @@ fun PianoRoll(
     onKey: ((midi: Int, down: Boolean) -> Unit)? = null,
 ) {
     val density = LocalDensity.current.density
-    BoxWithConstraints(modifier = modifier.background(BackgroundColor)) {
+    BoxWithConstraints(modifier = modifier.background(BackgroundColor).clipToBounds()) {
         val viewWidthDp = maxWidth.value
         val viewHeightDp = maxHeight.value
         // Zoom und Scroll in dp, passend zum Tonumfang des Liedes eingestellt
@@ -85,24 +86,36 @@ fun PianoRoll(
                         Modifier
                     } else {
                         Modifier.pointerInput(onKey, viewWidthDp, viewHeightDp) {
-                            detectTapGestures(onPress = { offset ->
-                                val midi = keyAt(
-                                    x = offset.x,
-                                    y = offset.y,
-                                    heightPx = viewHeightDp * density,
-                                    density = density,
-                                    zoomDp = zoom,
-                                    scrollDp = scroll,
-                                )
-                                if (midi != null) {
-                                    onKey(midi, true)
-                                    try {
-                                        tryAwaitRelease()
-                                    } finally {
-                                        onKey(midi, false)
+                            // Jeder Finger zählt einzeln: so funktionieren Akkorde auf der Bildschirmtastatur
+                            val keyByPointer = HashMap<PointerId, Int>()
+                            try {
+                                awaitPointerEventScope {
+                                    while (true) {
+                                        val event = awaitPointerEvent()
+                                        for (change in event.changes) {
+                                            if (change.pressed && !change.previousPressed) {
+                                                val midi = keyAt(
+                                                    x = change.position.x,
+                                                    y = change.position.y,
+                                                    heightPx = viewHeightDp * density,
+                                                    density = density,
+                                                    zoomDp = zoom,
+                                                    scrollDp = scroll,
+                                                )
+                                                if (midi != null) {
+                                                    keyByPointer[change.id] = midi
+                                                    onKey(midi, true)
+                                                }
+                                            } else if (!change.pressed && change.previousPressed) {
+                                                keyByPointer.remove(change.id)?.let { onKey(it, false) }
+                                            }
+                                        }
                                     }
                                 }
-                            })
+                            } finally {
+                                // Beim Verlassen alle noch gehaltenen Tasten loslassen
+                                keyByPointer.values.forEach { onKey(it, false) }
+                            }
                         }
                     },
                 ),
@@ -204,7 +217,7 @@ private fun DrawScope.drawRoll(
             val w = widthOf(note.midi)
             if (x + w < 0f || x > size.width) continue
 
-            val top = keysTop - ((note.endMs - positionMs) * pxPerMs).toFloat()
+            val top = max(0f, keysTop - ((note.endMs - positionMs) * pxPerMs).toFloat())
             val bottom = keysTop - ((note.startMs - positionMs) * pxPerMs).toFloat()
             if (note.startMs <= positionMs) activeHand[note.midi] = note.hand
 

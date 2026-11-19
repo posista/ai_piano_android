@@ -83,6 +83,8 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
     /** Zeitpunkte (ms), an denen geübte Noten beginnen. Der Wartemodus hält dort an. */
     private var checkpoints = LongArray(0)
+    /** Letzter Haltepunkt, der bereits behandelt wurde (-1 = noch keiner). */
+    private var consumedMs = -1L
     /** Index der nächsten Note des Stücks, die klingen kann (Noten sind nach Startzeit sortiert). */
     private var nextSoundIndex = 0
     /** Noten des Stücks, die gerade vom Synthesizer klingen. */
@@ -110,13 +112,35 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             )
         }
         refreshCheckpoints(_state.value.song, settings.practiceHands)
-        if (settings.soundOn) {
+
+        // Wartet das Stück auf Noten, die nach einem Handwechsel nicht mehr geübt werden, gibt es sie frei.
+        val song = _state.value.song
+        val waiting = _state.value.waitingForIds
+        if (song != null && waiting.isNotEmpty()) {
+            val stillPracticed = song.notes
+                .filter { it.id in waiting && settings.practiceHands.includes(it.hand) }
+                .map { it.id }
+                .toSet()
+            if (stillPracticed.size != waiting.size) {
+                _state.update { it.copy(waitingForIds = stillPracticed) }
+            }
+        }
+
+        if (settings.inputSource != activeType) switchSource(settings.inputSource)
+        updateSynth(settings.soundOn && settings.inputSource != InputSourceType.MICROPHONE)
+    }
+
+    /**
+     * Schaltet den Synthesizer ein oder aus. Mit dem Mikrofon bleibt er aus, weil das Mikrofon
+     * sonst die eigene Ausgabe der App hören und falsch auswerten würde.
+     */
+    private fun updateSynth(on: Boolean) {
+        if (on) {
             synth.start()
         } else {
             stopSongSound()
             synth.stop()
         }
-        if (settings.inputSource != activeType) switchSource(settings.inputSource)
     }
 
     private fun refreshCheckpoints(song: Song?, hands: PracticeHands) {
@@ -129,13 +153,13 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             ?: LongArray(0)
     }
 
-    /** Erster Zeitpunkt nach [positionMs], an dem der Wartemodus anhalten würde. */
-    private fun nextCheckpointAfter(positionMs: Double): Long? {
+    /** Erster Haltepunkt, der nach [afterMs] liegt. */
+    private fun nextCheckpointAfter(afterMs: Long): Long? {
         var low = 0
         var high = checkpoints.size
         while (low < high) {
             val mid = (low + high) ushr 1
-            if (checkpoints[mid] <= positionMs) low = mid + 1 else high = mid
+            if (checkpoints[mid] <= afterMs) low = mid + 1 else high = mid
         }
         return checkpoints.getOrNull(low)
     }
@@ -301,6 +325,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                 .onSuccess { song ->
                     pause()
                     refreshCheckpoints(song, _state.value.practiceHands)
+                    consumedMs = -1L
                     resetSoundTo(song, 0.0)
                     _state.update {
                         it.copy(
@@ -329,6 +354,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         val song = _state.value.song ?: return
         if (_state.value.positionMs >= song.durationMs) {
             _state.update { it.copy(positionMs = 0.0) }
+            consumedMs = -1L
             resetSoundTo(song, 0.0)
         }
         _state.update { it.copy(playing = true) }
@@ -355,6 +381,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     fun restart() {
         pause()
         val song = _state.value.song
+        consumedMs = -1L
         resetSoundTo(song, 0.0)
         _state.update {
             it.copy(
@@ -367,10 +394,16 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    /** Tempo in Prozent (50 bis 150); wird dauerhaft in den Einstellungen gespeichert. */
+    /**
+     * Tempo in Prozent (50 bis 150). Während des Ziehens nur im Zustand, gespeichert wird
+     * erst beim Loslassen über [saveTempo]. So schreibt der Regler nicht bei jeder Bewegung.
+     */
     fun setTempo(percent: Int) {
-        val value = percent.coerceIn(50, 150)
-        _state.update { it.copy(tempoPercent = value) }
+        _state.update { it.copy(tempoPercent = percent.coerceIn(50, 150)) }
+    }
+
+    fun saveTempo() {
+        val value = _state.value.tempoPercent
         viewModelScope.launch {
             settingsRepository.save(settingsRepository.settings.first().copy(tempoPercent = value))
         }
@@ -392,6 +425,25 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    /**
+     * App verlässt den Vordergrund: Wiedergabe anhalten, Ton aus, Mikrofon freigeben,
+     * damit keine Aufnahme im Hintergrund weiterläuft.
+     */
+    fun onAppStopped() {
+        pause()
+        if (activeType == InputSourceType.MICROPHONE) micSource.stop()
+        updateSynth(false)
+    }
+
+    /** App kommt zurück in den Vordergrund: Ton und Mikrofon wieder einschalten, falls gewählt. */
+    fun onAppStarted() {
+        val current = _state.value
+        updateSynth(current.soundOn && current.inputSource != InputSourceType.MICROPHONE)
+        if (activeType == InputSourceType.MICROPHONE && getApplication<Application>().hasRecordAudioPermission()) {
+            micSource.start()
+        }
+    }
+
     private fun advance(deltaMs: Double) {
         val current = _state.value
         val song = current.song ?: return
@@ -399,15 +451,34 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         if (current.waitingForIds.isNotEmpty()) return
 
         val next = current.positionMs + deltaMs * current.tempoPercent / 100.0
-        val checkpoint = if (current.waitMode) nextCheckpointAfter(current.positionMs) else null
-        if (checkpoint != null && next >= checkpoint) {
-            val pending = song.notes
-                .filter { it.startMs == checkpoint && current.practiceHands.includes(it.hand) && it.id !in current.hitNoteIds }
-                .map { it.id }
-                .toSet()
-            _state.update { it.copy(positionMs = checkpoint.toDouble(), waitingForIds = pending) }
-            updateSongSound(song, checkpoint.toDouble(), current)
-            return
+
+        if (current.waitMode) {
+            var checkpoint = nextCheckpointAfter(consumedMs)
+            // Haltepunkte, die schon vorbei sind (z. B. nach Wechsel in den Wartemodus), nicht nachholen
+            while (checkpoint != null && checkpoint < current.positionMs - 1.0) {
+                consumedMs = checkpoint
+                checkpoint = nextCheckpointAfter(consumedMs)
+            }
+            if (checkpoint != null && next >= checkpoint) {
+                consumedMs = checkpoint
+                val notes = song.notes.filter {
+                    it.startMs == checkpoint && current.practiceHands.includes(it.hand) && it.id !in current.hitNoteIds
+                }
+                val pendingIds = notes.map { it.id }.toSet()
+                // Strikter Akkord: Sind alle Töne schon gehalten, bevor das Stück hält, zählt das sofort
+                val strict = current.chordsTogether && current.inputSource != InputSourceType.MICROPHONE
+                val alreadyHeld = strict && notes.isNotEmpty() && notes.all { it.midi in current.pressedKeys }
+                _state.update {
+                    it.copy(
+                        positionMs = checkpoint.toDouble(),
+                        waitingForIds = if (alreadyHeld) emptySet() else pendingIds,
+                        hitNoteIds = if (alreadyHeld) it.hitNoteIds + pendingIds else it.hitNoteIds,
+                        correctCount = if (alreadyHeld) it.correctCount + pendingIds.size else it.correctCount,
+                    )
+                }
+                updateSongSound(song, checkpoint.toDouble(), current)
+                return
+            }
         }
 
         if (next >= song.durationMs) {

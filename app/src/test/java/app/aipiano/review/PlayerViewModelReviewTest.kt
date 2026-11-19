@@ -171,6 +171,8 @@ class PlayerViewModelReviewTest {
     fun switchingHandsWhileWaitingDoesNotDeadlock() {
         val vm = createVm(base)
         vm.play()
+        vm.advanceUntilWaiting() // Anfangsakkord bei 0 ms (C3 E3 G3 + E4)
+        vm.waitingKeys().forEach { vm.tap(it) }
         vm.advanceUntilWaiting() // wartet auf E4 (rechte Hand) bei 500 ms
         assertEquals(setOf(64), vm.waitingKeys())
 
