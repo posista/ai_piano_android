@@ -1,0 +1,27 @@
+# Gradle / Build-Ausgaben
+.gradle/
+build/
+**/build/
+.kotlin/
+captures/
+.externalNativeBuild/
+.cxx/
+
+# Android Studio / IntelliJ
+.idea/
+*.iml
+local.properties
+
+# Signierung und Geheimnisse
+*.jks
+*.keystore
+keystore.properties
+
+# Erzeugte Installationspakete (werden von CI gebaut und als Artefakt bereitgestellt)
+*.apk
+*.aab
+
+# Betriebssystem / Sonstiges
+.DS_Store
+Thumbs.db
+*.log

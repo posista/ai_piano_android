@@ -1,0 +1,39 @@
+name: Debug-APK bauen
+
+# Baut bei jedem Push (und manuell) eine installierbare Debug-APK und stellt sie
+# als Artefakt "AI_Piano_debug_apk" im Actions-Lauf zum Download bereit.
+on:
+  push:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Quellcode holen
+        uses: actions/checkout@v4
+
+      - name: JDK 17 einrichten
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Gradle einrichten
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: 8.10.2
+
+      - name: Unit-Tests ausführen und Debug-APK bauen
+        run: gradle --no-daemon testDebugUnitTest assembleDebug
+
+      - name: Debug-APK als Artefakt hochladen
+        uses: actions/upload-artifact@v4
+        with:
+          name: AI_Piano_debug_apk
+          path: app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+          retention-days: 30

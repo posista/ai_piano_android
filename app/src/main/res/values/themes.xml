@@ -1,0 +1,4 @@
+<resources>
+    <!-- Die eigentliche Optik kommt aus Jetpack Compose (Material 3). -->
+    <style name="Theme.AIPiano" parent="android:Theme.Material.Light.NoActionBar" />
+</resources>
