@@ -70,6 +70,17 @@ Rückmeldung: Trifft die Eingabe eine Note im Zeitfenster von ±350 ms, wird der
 und die Taste leuchtet. Eine falsche Taste leuchtet **rot**. Der Zähler „Richtig / Falsch“ zeigt
 das Ergebnis.
 
+## Tonausgabe und Akkorde (Stand Nachtrag)
+
+Zwei Schalter, jeweils im Hauptbildschirm (Button „Ton“) und in den Einstellungen:
+
+- **Töne abspielen** (Standard: an). Eingebauter Klavier-Synthesizer ohne Samples: Gespielte
+  Tasten klingen sofort. Im Wartemodus klingt auch die nicht geübte Hand. Im Abspielmodus klingt
+  das ganze Stück.
+- **Akkorde gleichzeitig spielen** (Standard: an). Bei an: Ein Akkord gilt erst, wenn alle geforderten
+  Töne gleichzeitig gehalten werden. Bei aus: Die Akkordtöne dürfen nacheinander kommen.
+  Mit dem Mikrofon ist die Gleichzeitigkeit automatisch aus, weil es nur einen Ton zur Zeit hört.
+
 ## Modi (Stand Schritt 4)
 
 - **Wartemodus** (Standard): Bevor eine geübte Note beginnt, hält das Stück an. Es läuft erst

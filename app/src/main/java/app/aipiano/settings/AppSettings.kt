@@ -30,4 +30,8 @@ data class AppSettings(
     val waitMode: Boolean = true,
     /** Mikrofon-Empfindlichkeit 0 (nur laute Töne) bis 1 (auch leise Töne). */
     val micSensitivity: Float = 0.6f,
+    /** Töne hörbar machen: gespielte Tasten und die Noten, die das Programm selbst spielt. */
+    val soundOn: Boolean = true,
+    /** Akkordtöne müssen gleichzeitig gehalten werden. Mit dem Mikrofon automatisch aus. */
+    val chordsTogether: Boolean = true,
 )

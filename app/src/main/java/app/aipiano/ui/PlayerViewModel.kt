@@ -4,6 +4,7 @@ import android.app.Application
 import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import app.aipiano.audio.NoteSynth
 import app.aipiano.audio.hasRecordAudioPermission
 import app.aipiano.input.MicrophoneInputSource
 import app.aipiano.input.MidiUsbInputSource
@@ -12,6 +13,7 @@ import app.aipiano.input.NoteInputSource
 import app.aipiano.input.VirtualKeyboardInputSource
 import app.aipiano.midi.MidiParser
 import app.aipiano.midi.Song
+import app.aipiano.midi.SongNote
 import app.aipiano.settings.AppSettings
 import app.aipiano.settings.InputSourceType
 import app.aipiano.settings.PracticeHands
@@ -45,6 +47,8 @@ data class PlayerUiState(
     val practiceHands: PracticeHands = PracticeHands.BOTH,
     val waitMode: Boolean = true,
     val micSensitivity: Float = 0.6f,
+    val soundOn: Boolean = true,
+    val chordsTogether: Boolean = true,
     val inputSource: InputSourceType = InputSourceType.USB_MIDI,
     val inputStatus: String = "",
     /** Ids der Noten, die richtig gespielt wurden (werden grün). */
@@ -61,8 +65,8 @@ data class PlayerUiState(
 )
 
 /**
- * Hält das geladene Stück, die Wiedergabeposition, den Wartemodus und die Auswertung der Eingabe.
- * Die UI beobachtet nur [state] (MVVM).
+ * Hält das geladene Stück, die Wiedergabeposition, den Wartemodus, die Tonausgabe und die
+ * Auswertung der Eingabe. Die UI beobachtet nur [state] (MVVM).
  */
 class PlayerViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -70,6 +74,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     private val usbSource = MidiUsbInputSource(application)
     private val virtualSource = VirtualKeyboardInputSource()
     private val micSource = MicrophoneInputSource { _state.value.micSensitivity }
+    private val synth = NoteSynth()
 
     private var activeSource: NoteInputSource? = null
     private var activeType: InputSourceType? = null
@@ -78,6 +83,10 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
     /** Zeitpunkte (ms), an denen geübte Noten beginnen. Der Wartemodus hält dort an. */
     private var checkpoints = LongArray(0)
+    /** Index der nächsten Note des Stücks, die klingen kann (Noten sind nach Startzeit sortiert). */
+    private var nextSoundIndex = 0
+    /** Noten des Stücks, die gerade vom Synthesizer klingen. */
+    private val songSounding = mutableListOf<SongNote>()
 
     private val _state = MutableStateFlow(PlayerUiState())
     val state: StateFlow<PlayerUiState> = _state.asStateFlow()
@@ -95,10 +104,18 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                 practiceHands = settings.practiceHands,
                 waitMode = settings.waitMode,
                 micSensitivity = settings.micSensitivity,
+                soundOn = settings.soundOn,
+                chordsTogether = settings.chordsTogether,
                 inputSource = settings.inputSource,
             )
         }
         refreshCheckpoints(_state.value.song, settings.practiceHands)
+        if (settings.soundOn) {
+            synth.start()
+        } else {
+            stopSongSound()
+            synth.stop()
+        }
         if (settings.inputSource != activeType) switchSource(settings.inputSource)
     }
 
@@ -162,14 +179,26 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     private fun handleNote(event: NoteEvent) {
+        // Gespielte Taste sofort hörbar machen, unabhängig von der Auswertung
+        val soundKey = "user-${event.midi}"
+        if (event.isOn) synth.noteOn(soundKey, event.midi, event.velocity) else synth.noteOff(soundKey)
+
         val current = _state.value
-        val song = current.song
         if (!event.isOn) {
             _state.update { it.copy(pressedKeys = it.pressedKeys - event.midi) }
             return
         }
+        val heldAfter = current.pressedKeys + event.midi
+        val song = current.song
         if (song == null) {
-            _state.update { it.copy(pressedKeys = it.pressedKeys + event.midi) }
+            _state.update { it.copy(pressedKeys = heldAfter) }
+            return
+        }
+
+        // Akkordtöne gleichzeitig: nur mit USB-MIDI oder Bildschirmtasten (Mikrofon hört nur einen Ton)
+        val strictChords = current.chordsTogether && current.inputSource != InputSourceType.MICROPHONE
+        if (strictChords && current.waitingForIds.isNotEmpty()) {
+            handleChordKey(song, current, event.midi, heldAfter)
             return
         }
 
@@ -179,22 +208,52 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                 it.copy(
                     hitNoteIds = it.hitNoteIds + match,
                     waitingForIds = it.waitingForIds - match,
-                    pressedKeys = it.pressedKeys + event.midi,
+                    pressedKeys = heldAfter,
                     correctCount = it.correctCount + 1,
                 )
             }
         } else {
+            flashWrong(event.midi, heldAfter)
+        }
+    }
+
+    /**
+     * Wartet auf einen Akkord: Erst wenn alle geforderten Tasten gleichzeitig gehalten werden,
+     * gilt der Anschlag als richtig. Einzelne Töne werden nicht gezählt.
+     */
+    private fun handleChordKey(song: Song, current: PlayerUiState, midi: Int, heldAfter: Set<Int>) {
+        val pending = song.notes.filter { it.id in current.waitingForIds }
+        val pendingKeys = pending.map { it.midi }.toSet()
+        if (midi !in pendingKeys) {
+            flashWrong(midi, heldAfter)
+            return
+        }
+        if (heldAfter.containsAll(pendingKeys)) {
             _state.update {
                 it.copy(
-                    wrongKeys = it.wrongKeys + event.midi,
-                    pressedKeys = it.pressedKeys + event.midi,
-                    wrongCount = it.wrongCount + 1,
+                    hitNoteIds = it.hitNoteIds + current.waitingForIds,
+                    waitingForIds = emptySet(),
+                    pressedKeys = heldAfter,
+                    correctCount = it.correctCount + pending.size,
                 )
             }
-            viewModelScope.launch {
-                delay(WRONG_FLASH_MS)
-                _state.update { it.copy(wrongKeys = it.wrongKeys - event.midi) }
-            }
+        } else {
+            // Richtiger Ton, aber noch nicht alle gleichzeitig: nur als gedrückt anzeigen
+            _state.update { it.copy(pressedKeys = heldAfter) }
+        }
+    }
+
+    private fun flashWrong(midi: Int, pressedAfter: Set<Int>) {
+        _state.update {
+            it.copy(
+                wrongKeys = it.wrongKeys + midi,
+                pressedKeys = pressedAfter,
+                wrongCount = it.wrongCount + 1,
+            )
+        }
+        viewModelScope.launch {
+            delay(WRONG_FLASH_MS)
+            _state.update { it.copy(wrongKeys = it.wrongKeys - midi) }
         }
     }
 
@@ -242,6 +301,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                 .onSuccess { song ->
                     pause()
                     refreshCheckpoints(song, _state.value.practiceHands)
+                    resetSoundTo(song, 0.0)
                     _state.update {
                         it.copy(
                             song = song,
@@ -269,6 +329,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         val song = _state.value.song ?: return
         if (_state.value.positionMs >= song.durationMs) {
             _state.update { it.copy(positionMs = 0.0) }
+            resetSoundTo(song, 0.0)
         }
         _state.update { it.copy(playing = true) }
         clockJob?.cancel()
@@ -287,11 +348,14 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     fun pause() {
         clockJob?.cancel()
         clockJob = null
+        stopSongSound()
         _state.update { it.copy(playing = false) }
     }
 
     fun restart() {
         pause()
+        val song = _state.value.song
+        resetSoundTo(song, 0.0)
         _state.update {
             it.copy(
                 positionMs = 0.0,
@@ -320,6 +384,14 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    /** Schaltet die Tonausgabe an oder aus und speichert die Wahl. */
+    fun toggleSound() {
+        viewModelScope.launch {
+            val current = settingsRepository.settings.first()
+            settingsRepository.save(current.copy(soundOn = !current.soundOn))
+        }
+    }
+
     private fun advance(deltaMs: Double) {
         val current = _state.value
         val song = current.song ?: return
@@ -334,6 +406,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                 .map { it.id }
                 .toSet()
             _state.update { it.copy(positionMs = checkpoint.toDouble(), waitingForIds = pending) }
+            updateSongSound(song, checkpoint.toDouble(), current)
             return
         }
 
@@ -342,11 +415,49 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             _state.update { it.copy(positionMs = song.durationMs.toDouble()) }
         } else {
             _state.update { it.copy(positionMs = next) }
+            updateSongSound(song, next, current)
         }
+    }
+
+    /**
+     * Lässt die Noten des Stücks klingen, die das Programm selbst spielt: im Abspielmodus alle,
+     * im Wartemodus nur die nicht geübte Hand.
+     */
+    private fun updateSongSound(song: Song, positionMs: Double, current: PlayerUiState) {
+        while (nextSoundIndex < song.notes.size && song.notes[nextSoundIndex].startMs <= positionMs) {
+            val note = song.notes[nextSoundIndex]
+            nextSoundIndex++
+            val audible = !current.waitMode || !current.practiceHands.includes(note.hand)
+            if (audible) {
+                synth.noteOn("song-${note.id}", note.midi, note.velocity)
+                songSounding += note
+            }
+        }
+        val iterator = songSounding.iterator()
+        while (iterator.hasNext()) {
+            val note = iterator.next()
+            if (note.endMs <= positionMs) {
+                synth.noteOff("song-${note.id}")
+                iterator.remove()
+            }
+        }
+    }
+
+    private fun stopSongSound() {
+        songSounding.forEach { synth.noteOff("song-${it.id}") }
+        songSounding.clear()
+    }
+
+    private fun resetSoundTo(song: Song?, positionMs: Double) {
+        stopSongSound()
+        nextSoundIndex = song?.notes?.indexOfFirst { it.startMs > positionMs }
+            ?.takeIf { it >= 0 }
+            ?: (song?.notes?.size ?: 0)
     }
 
     override fun onCleared() {
         activeSource?.stop()
+        synth.stop()
         super.onCleared()
     }
 }

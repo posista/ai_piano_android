@@ -24,6 +24,8 @@ class SettingsRepository(private val context: Context) {
             practiceHands = prefs[KEY_HANDS].toEnum(PracticeHands.BOTH),
             waitMode = prefs[KEY_WAIT_MODE] ?: true,
             micSensitivity = (prefs[KEY_MIC_SENSITIVITY] ?: 0.6f).coerceIn(0f, 1f),
+            soundOn = prefs[KEY_SOUND_ON] ?: true,
+            chordsTogether = prefs[KEY_CHORDS_TOGETHER] ?: true,
         )
     }
 
@@ -34,6 +36,8 @@ class SettingsRepository(private val context: Context) {
             prefs[KEY_HANDS] = settings.practiceHands.name
             prefs[KEY_WAIT_MODE] = settings.waitMode
             prefs[KEY_MIC_SENSITIVITY] = settings.micSensitivity.coerceIn(0f, 1f)
+            prefs[KEY_SOUND_ON] = settings.soundOn
+            prefs[KEY_CHORDS_TOGETHER] = settings.chordsTogether
         }
     }
 
@@ -43,6 +47,8 @@ class SettingsRepository(private val context: Context) {
         val KEY_HANDS = stringPreferencesKey("practice_hands")
         val KEY_WAIT_MODE = booleanPreferencesKey("wait_mode")
         val KEY_MIC_SENSITIVITY = floatPreferencesKey("mic_sensitivity")
+        val KEY_SOUND_ON = booleanPreferencesKey("sound_on")
+        val KEY_CHORDS_TOGETHER = booleanPreferencesKey("chords_together")
 
         inline fun <reified T : Enum<T>> String?.toEnum(default: T): T =
             this?.let { name -> runCatching { enumValueOf<T>(name) }.getOrNull() } ?: default

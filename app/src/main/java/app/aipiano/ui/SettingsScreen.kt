@@ -19,6 +19,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Slider
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -125,6 +126,23 @@ fun SettingsScreen(
             onSelect = { viewModel.update { it.copy(waitMode = false) } },
         )
 
+        SectionTitle("Ton und Akkorde")
+        SwitchRow(
+            label = "Töne abspielen",
+            checked = settings.soundOn,
+            onChange = { value -> viewModel.update { it.copy(soundOn = value) } },
+        )
+        SwitchRow(
+            label = "Akkorde gleichzeitig spielen",
+            checked = settings.chordsTogether,
+            onChange = { value -> viewModel.update { it.copy(chordsTogether = value) } },
+        )
+        Text(
+            "Aus: Akkordtöne dürfen nacheinander gespielt werden. Mit dem Mikrofon gilt das " +
+                "automatisch, weil es nur einen Ton zur Zeit hört.",
+            style = MaterialTheme.typography.bodySmall,
+        )
+
         SectionTitle("Zu übende Hände")
         PracticeHands.entries.forEach { hands ->
             ChoiceRow(
@@ -143,6 +161,19 @@ fun SettingsScreen(
 @Composable
 private fun SectionTitle(text: String) {
     Text(text, style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 8.dp))
+}
+
+@Composable
+private fun SwitchRow(label: String, checked: Boolean, onChange: (Boolean) -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(label, modifier = Modifier.weight(1f))
+        Switch(checked = checked, onCheckedChange = onChange)
+    }
 }
 
 @Composable

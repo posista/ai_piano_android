@@ -56,6 +56,9 @@ fun PlayerScreen(
             OutlinedButton(onClick = viewModel::toggleWaitMode) {
                 Text(if (state.waitMode) "Modus: Warten" else "Modus: Abspielen")
             }
+            OutlinedButton(onClick = viewModel::toggleSound) {
+                Text(if (state.soundOn) "Ton: an" else "Ton: aus")
+            }
         }
 
         Text("Tempo: ${state.tempoPercent} %", style = MaterialTheme.typography.bodyMedium)
