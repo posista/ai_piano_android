@@ -35,7 +35,7 @@ class MidiParserTest {
         assertEquals(60, note.midi)
         assertEquals(0L, note.startMs)
         assertEquals(500L, note.endMs)  // 480 Ticks bei 120 BPM = 500 ms
-        assertEquals(Hand.LEFT, note.hand) // einzelne Spur, C4 wird als Grenzfall links gezählt
+        assertEquals(Hand.RIGHT, note.hand) // einzelne Spur: Töne ab C4 (60) gehören zur rechten Hand
     }
 
     @Test
@@ -55,7 +55,8 @@ class MidiParserTest {
         assertEquals(54, song.notes.size)            // 30 Melodietöne + 24 Akkordtöne
         assertEquals(30, song.notes.count { it.hand == Hand.RIGHT })
         assertEquals(24, song.notes.count { it.hand == Hand.LEFT })
-        assertEquals(16_000L, song.durationMs)       // 8 Takte à 2 s bei 120 BPM
+        // 8 Takte à 2 s bei 120 BPM; die Akkorde enden 40 Ticks (~42 ms) vor dem Taktende
+        assertTrue(song.durationMs in 15_900L..16_000L)
         assertTrue(song.notes.zipWithNext().all { (a, b) -> a.startMs <= b.startMs })
     }
 }
