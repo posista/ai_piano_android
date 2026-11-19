@@ -7,7 +7,7 @@ dargestellt – wie in Piano-Tutorial-Videos. Linke und rechte Hand sind farblic
 Im Wartemodus läuft das Stück erst weiter, wenn der richtige Ton (bzw. alle Töne eines
 Akkords) gespielt wird.
 
-> **Status:** Schritt 4 von 5 – Wartemodus, USB-MIDI-Eingang, Einstellungen und Rückmeldung (richtig grün, falsch rot).
+> **Status:** Schritt 5 von 5 – alle geplanten Funktionen sind umgesetzt: MIDI-Import, Darstellung, Abspielmodus, Wartemodus, USB-MIDI und Mikrofon-Erkennung.
 > Die Funktionen folgen schrittweise (siehe Abschnitt „Fahrplan“).
 
 ## Fahrplan
@@ -18,7 +18,7 @@ Akkords) gespielt wird.
 | 2 | MIDI-Import (Noten, Startzeit, Dauer, Hand/Spur), Klaviatur (88 Tasten, zoom- und scrollbar), fallende Balken, Abspielmodus mit einstellbarem Tempo | fertig |
 | 3 | Eingabe über USB-MIDI (`MidiManager`), Einstellungen (Eingabequelle, Tempo, Hände), Rückmeldung grün/rot | fertig |
 | 4 | Wartemodus (wartet auf richtigen Ton bzw. Akkord), grün/rot-Rückmeldung | fertig |
-| 5 | Mikrofon-Tonerkennung (YIN), Mikrofon-Empfindlichkeit, Berechtigungsabfrage | geplant |
+| 5 | Mikrofon-Tonerkennung (YIN), Mikrofon-Empfindlichkeit, Berechtigungsabfrage | fertig |
 
 ## Projektstruktur
 
@@ -57,7 +57,12 @@ mittlerer Tonhöhe unter C4 als linke Hand. Bei nur einer Spur entscheidet die T
     USB-Host-fähiges Handy und ein OTG-Adapter.
   - *Bildschirmtasten (zum Testen):* Die Klaviatur am unteren Rand kann direkt angetippt werden.
     So lässt sich die Übung auch ohne Keyboard ausprobieren.
-  - *Mikrofon:* folgt in Schritt 5.
+  - *Mikrofon (nur einstimmig):* Die App erkennt die Tonhöhe per Mikrofon (YIN-Algorithmus).
+    Beim ersten Auswählen fragt Android nach der Berechtigung **Mikrofon** (`RECORD_AUDIO`).
+    Ohne Erlaubnis wird nichts aufgenommen. Mit dem Schieberegler „Mikrofon-Empfindlichkeit“
+    stellst du ein, ab welcher Lautstärke ein Ton zählt.
+    Einschränkung: Ein Mikrofon hört nur einen Ton zur Zeit. Akkorde lassen sich damit nicht
+    erkennen, dafür ist ein USB-Keyboard besser geeignet.
 - **Tempo** wird gespeichert und gilt auch im Hauptbildschirm.
 - **Zu übende Hände:** beide, nur links oder nur rechts. Die andere Hand läuft im Takt mit.
 

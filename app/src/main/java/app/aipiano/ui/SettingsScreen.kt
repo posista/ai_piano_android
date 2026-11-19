@@ -1,5 +1,8 @@
 package app.aipiano.ui
 
+import android.Manifest
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -19,12 +22,17 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import app.aipiano.audio.hasRecordAudioPermission
 import app.aipiano.settings.InputSourceType
 import app.aipiano.settings.PracticeHands
 import kotlin.math.roundToInt
@@ -35,6 +43,19 @@ fun SettingsScreen(
     viewModel: SettingsViewModel = viewModel(),
 ) {
     val settings by viewModel.settings.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+    var micMessage by remember { mutableStateOf<String?>(null) }
+
+    // Mikrofon-Berechtigung wird erst angefragt, wenn der Nutzer das Mikrofon wählt
+    val micPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) {
+            micMessage = null
+            viewModel.update { it.copy(inputSource = InputSourceType.MICROPHONE) }
+        } else {
+            micMessage = "Ohne Mikrofon-Berechtigung kann die App nicht hören. Du kannst sie in den " +
+                "Android-Einstellungen unter Apps → AI Piano → Berechtigungen erlauben."
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -55,12 +76,32 @@ fun SettingsScreen(
             ChoiceRow(
                 label = type.label,
                 selected = settings.inputSource == type,
-                onSelect = { viewModel.update { it.copy(inputSource = type) } },
+                onSelect = {
+                    if (type == InputSourceType.MICROPHONE && !context.hasRecordAudioPermission()) {
+                        micPermission.launch(Manifest.permission.RECORD_AUDIO)
+                    } else {
+                        micMessage = null
+                        viewModel.update { it.copy(inputSource = type) }
+                    }
+                },
             )
         }
+        micMessage?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
         Text(
             "USB-MIDI braucht ein USB-Host-fähiges Handy und einen OTG-Adapter. Für MIDI-Geräte " +
                 "fragt Android keine Berechtigung ab; das Keyboard wird direkt verbunden.",
+            style = MaterialTheme.typography.bodySmall,
+        )
+
+        SectionTitle("Mikrofon-Empfindlichkeit: ${(settings.micSensitivity * 100).roundToInt()} %")
+        Slider(
+            value = settings.micSensitivity,
+            onValueChange = { value -> viewModel.update { it.copy(micSensitivity = value) } },
+            valueRange = 0f..1f,
+        )
+        Text(
+            "Höher = auch leise Töne werden erkannt, aber auch mehr Hintergrundgeräusche. " +
+                "Mit dem Mikrofon wird nur einstimmig erkannt, also Einzeltöne statt Akkorden.",
             style = MaterialTheme.typography.bodySmall,
         )
 

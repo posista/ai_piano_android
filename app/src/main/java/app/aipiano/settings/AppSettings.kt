@@ -5,7 +5,7 @@ import app.aipiano.midi.Hand
 /** Woher die gespielten Noten kommen. */
 enum class InputSourceType(val label: String) {
     USB_MIDI("USB-MIDI-Keyboard"),
-    MICROPHONE("Mikrofon"),
+    MICROPHONE("Mikrofon (nur einstimmig)"),
     VIRTUAL("Bildschirmtasten (zum Testen)"),
 }
 
@@ -28,4 +28,6 @@ data class AppSettings(
     val practiceHands: PracticeHands = PracticeHands.BOTH,
     /** true = Wartemodus (Stück hält an, bis richtig gespielt), false = Abspielmodus. */
     val waitMode: Boolean = true,
+    /** Mikrofon-Empfindlichkeit 0 (nur laute Töne) bis 1 (auch leise Töne). */
+    val micSensitivity: Float = 0.6f,
 )

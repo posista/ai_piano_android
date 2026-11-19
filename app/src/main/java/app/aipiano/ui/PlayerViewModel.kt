@@ -4,6 +4,8 @@ import android.app.Application
 import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import app.aipiano.audio.hasRecordAudioPermission
+import app.aipiano.input.MicrophoneInputSource
 import app.aipiano.input.MidiUsbInputSource
 import app.aipiano.input.NoteEvent
 import app.aipiano.input.NoteInputSource
@@ -42,6 +44,7 @@ data class PlayerUiState(
     val tempoPercent: Int = 100,
     val practiceHands: PracticeHands = PracticeHands.BOTH,
     val waitMode: Boolean = true,
+    val micSensitivity: Float = 0.6f,
     val inputSource: InputSourceType = InputSourceType.USB_MIDI,
     val inputStatus: String = "",
     /** Ids der Noten, die richtig gespielt wurden (werden grün). */
@@ -66,6 +69,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     private val settingsRepository = SettingsRepository(application)
     private val usbSource = MidiUsbInputSource(application)
     private val virtualSource = VirtualKeyboardInputSource()
+    private val micSource = MicrophoneInputSource { _state.value.micSensitivity }
 
     private var activeSource: NoteInputSource? = null
     private var activeType: InputSourceType? = null
@@ -90,6 +94,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                 tempoPercent = settings.tempoPercent,
                 practiceHands = settings.practiceHands,
                 waitMode = settings.waitMode,
+                micSensitivity = settings.micSensitivity,
                 inputSource = settings.inputSource,
             )
         }
@@ -127,12 +132,18 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         val source = when (type) {
             InputSourceType.USB_MIDI -> usbSource
             InputSourceType.VIRTUAL -> virtualSource
-            // Mikrofon-Erkennung folgt in Schritt 5
-            InputSourceType.MICROPHONE -> null
+            // Ohne Berechtigung wird nie aufgenommen
+            InputSourceType.MICROPHONE ->
+                if (getApplication<Application>().hasRecordAudioPermission()) micSource else null
         }
         activeSource = source
         if (source == null) {
-            _state.update { it.copy(inputStatus = "Mikrofon-Erkennung folgt in einem späteren Schritt") }
+            val message = if (type == InputSourceType.MICROPHONE) {
+                "Mikrofon: keine Berechtigung. In den Einstellungen erlauben."
+            } else {
+                "Keine Eingabequelle aktiv"
+            }
+            _state.update { it.copy(inputStatus = message) }
             return
         }
 

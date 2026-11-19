@@ -5,6 +5,7 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
@@ -22,6 +23,7 @@ class SettingsRepository(private val context: Context) {
             tempoPercent = (prefs[KEY_TEMPO] ?: 100).coerceIn(50, 150),
             practiceHands = prefs[KEY_HANDS].toEnum(PracticeHands.BOTH),
             waitMode = prefs[KEY_WAIT_MODE] ?: true,
+            micSensitivity = (prefs[KEY_MIC_SENSITIVITY] ?: 0.6f).coerceIn(0f, 1f),
         )
     }
 
@@ -31,6 +33,7 @@ class SettingsRepository(private val context: Context) {
             prefs[KEY_TEMPO] = settings.tempoPercent
             prefs[KEY_HANDS] = settings.practiceHands.name
             prefs[KEY_WAIT_MODE] = settings.waitMode
+            prefs[KEY_MIC_SENSITIVITY] = settings.micSensitivity.coerceIn(0f, 1f)
         }
     }
 
@@ -39,6 +42,7 @@ class SettingsRepository(private val context: Context) {
         val KEY_TEMPO = intPreferencesKey("tempo_percent")
         val KEY_HANDS = stringPreferencesKey("practice_hands")
         val KEY_WAIT_MODE = booleanPreferencesKey("wait_mode")
+        val KEY_MIC_SENSITIVITY = floatPreferencesKey("mic_sensitivity")
 
         inline fun <reified T : Enum<T>> String?.toEnum(default: T): T =
             this?.let { name -> runCatching { enumValueOf<T>(name) }.getOrNull() } ?: default

@@ -4,6 +4,10 @@
     <!-- Optionale Hardware: die App läuft auch ohne USB-MIDI-Gerät oder Mikrofon. -->
     <uses-feature android:name="android.software.midi" android:required="false" />
     <uses-feature android:name="android.hardware.usb.host" android:required="false" />
+    <uses-feature android:name="android.hardware.microphone" android:required="false" />
+
+    <!-- Nur für die Tonerkennung per Mikrofon. Wird zur Laufzeit angefragt, siehe SettingsScreen. -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
 
     <application
         android:allowBackup="true"
