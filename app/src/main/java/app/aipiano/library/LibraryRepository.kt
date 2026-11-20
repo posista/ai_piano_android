@@ -16,7 +16,7 @@ data class LibraryEntry(
     val addedAt: Long,
 )
 
-enum class Source { FILE, YOUTUBE, CONVERTED }
+enum class Source { FILE, YOUTUBE, CONVERTED, SCORE }
 
 /**
  * Speichert Stücke dauerhaft im App-Speicher: eine Indexdatei (JSON) und je Stück eine .mid-Datei.
@@ -38,6 +38,11 @@ class LibraryRepository(context: Context) {
     @Synchronized
     fun addConverted(title: String, midi: ByteArray): LibraryEntry =
         add(LibraryEntry(newId(), title, Source.CONVERTED, null, hasMidi = true, addedAt = now()), midi)
+
+    /** Ergebnis der Notenerkennung aus einem PDF oder Bild. */
+    @Synchronized
+    fun addScore(title: String, midi: ByteArray): LibraryEntry =
+        add(LibraryEntry(newId(), title, Source.SCORE, null, hasMidi = true, addedAt = now()), midi)
 
     @Synchronized
     fun addYouTube(title: String, url: String): LibraryEntry =

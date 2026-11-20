@@ -53,6 +53,9 @@ fun LibraryScreen(
     val pickMedia = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) viewModel.convertAudio(uri)
     }
+    val pickScore = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) viewModel.importScore(uri)
+    }
     val pickMidiForEntry = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         val target = attachTarget
         if (uri != null && target != null) viewModel.attachMidi(target, uri)
@@ -76,6 +79,14 @@ fun LibraryScreen(
         Button(onClick = { pickMedia.launch(arrayOf("audio/*", "video/*")) }) {
             Text("Audio oder Video umwandeln")
         }
+        Button(onClick = { pickScore.launch(arrayOf("application/pdf", "image/*")) }) {
+            Text("Noten als PDF oder Bild erkennen")
+        }
+        Text(
+            "Notenerkennung: funktioniert nur bei sauber gedruckten, einfachen Noten (eine Stimme, " +
+                "Violin- und Bassschlüssel, ohne Vorzeichen-Erkennung). Das Ergebnis immer prüfen.",
+            style = MaterialTheme.typography.bodySmall,
+        )
         Text(
             "Umwandlung: Die Tonspur wird analysiert und als MIDI gespeichert. Das Ergebnis ist eine " +
                 "Näherung und muss nicht perfekt sein. Nutze nur Aufnahmen, für die du die Rechte hast.",
@@ -147,6 +158,7 @@ private fun EntryCard(
                 Source.FILE -> "MIDI-Datei"
                 Source.YOUTUBE -> "YouTube-Link"
                 Source.CONVERTED -> "aus Audio/Video umgewandelt"
+                Source.SCORE -> "aus Noten (PDF/Bild) erkannt"
             }
             val midiState = if (entry.hasMidi) "MIDI vorhanden" else "keine MIDI-Datei"
             Text("$kind · $midiState", style = MaterialTheme.typography.bodySmall)

@@ -9,6 +9,8 @@ import app.aipiano.library.LibraryEntry
 import app.aipiano.library.LibraryNames
 import app.aipiano.library.LibraryRepository
 import app.aipiano.library.YouTubeTitle
+import app.aipiano.score.ScoreImporter
+import app.aipiano.score.ScoreReader
 import app.aipiano.transcribe.AudioDecoder
 import app.aipiano.transcribe.MidiWriter
 import app.aipiano.transcribe.SpectralTranscriber
@@ -79,6 +81,33 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
                 }
                 .onFailure {
                     _message.value = "Umwandlung fehlgeschlagen: ${it.message ?: "unbekannter Fehler"}"
+                }
+            refresh()
+        }
+    }
+
+    /** Liest Noten aus einem PDF oder Bild, erkennt sie und legt die MIDI-Datei in der Bibliothek ab. */
+    fun importScore(uri: Uri) {
+        viewModelScope.launch {
+            _message.value = "Noten werden erkannt … Das kann bei mehreren Seiten dauern."
+            val raw = displayName(uri)
+            val mime = getApplication<Application>().contentResolver.getType(uri)
+            val title = LibraryNames.stripAnyExtension(LibraryNames.cleanFileName(raw))
+            val result = withContext(Dispatchers.Default) {
+                runCatching {
+                    val pages = ScoreImporter.load(getApplication(), uri, mime, raw.orEmpty())
+                    val notes = ScoreReader.read(pages)
+                    check(notes.isNotEmpty()) { "Es wurden keine Noten erkannt." }
+                    MidiWriter.write(notes, title) to notes.size
+                }
+            }
+            result
+                .onSuccess { (midi, count) ->
+                    withContext(Dispatchers.IO) { repository.addScore(title, midi) }
+                    _message.value = "„$title“ erkannt: $count Noten. Bitte mit dem Original vergleichen."
+                }
+                .onFailure {
+                    _message.value = "Notenerkennung fehlgeschlagen: ${it.message ?: "unbekannter Fehler"}"
                 }
             refresh()
         }

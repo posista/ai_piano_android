@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.rememberScrollState
@@ -24,6 +25,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalLifecycleOwner
@@ -48,6 +52,7 @@ fun PlayerScreen(
         if (uri != null) viewModel.loadSong(uri)
     }
     val song = state.song
+    var showStaff by rememberSaveable { mutableStateOf(true) }
 
     // Beim Verlassen der App anhalten, Mikrofon und Ton freigeben
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -81,6 +86,9 @@ fun PlayerScreen(
             }
             OutlinedButton(onClick = viewModel::toggleSound) {
                 Text(if (state.soundOn) "Ton: an" else "Ton: aus")
+            }
+            OutlinedButton(onClick = { showStaff = !showStaff }) {
+                Text(if (showStaff) "Notensystem: an" else "Notensystem: aus")
             }
         }
 
@@ -163,7 +171,7 @@ fun PlayerScreen(
     BoxWithConstraints(Modifier.fillMaxSize().systemBarsPadding()) {
         val landscape = maxWidth > maxHeight
         if (landscape) {
-            // Querformat: Bedienung links (scrollbar), Notenfläche rechts über die volle Höhe
+            // Querformat: Bedienung links (scrollbar), Notensystem und Klaviatur rechts
             Row(
                 modifier = Modifier.fillMaxSize().padding(8.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -177,23 +185,53 @@ fun PlayerScreen(
                 ) {
                     controls()
                 }
-                PianoRoll(
-                    song = song,
-                    positionMs = state.positionMs,
-                    hitNoteIds = state.hitNoteIds,
-                    pressedKeys = state.pressedKeys,
-                    wrongKeys = state.wrongKeys,
-                    onKey = onKey,
-                    practiceHands = state.practiceHands,
+                Column(
                     modifier = Modifier.weight(0.6f).fillMaxHeight(),
-                )
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    if (showStaff) StaffView(
+                        song = song,
+                        positionMs = state.positionMs,
+                        hitNoteIds = state.hitNoteIds,
+                        waitingForIds = state.waitingForIds,
+                        practiceHands = state.practiceHands,
+                        modifier = Modifier.weight(0.4f).fillMaxWidth(),
+                    )
+                    PianoRoll(
+                        song = song,
+                        positionMs = state.positionMs,
+                        hitNoteIds = state.hitNoteIds,
+                        pressedKeys = state.pressedKeys,
+                        wrongKeys = state.wrongKeys,
+                        onKey = onKey,
+                        practiceHands = state.practiceHands,
+                        modifier = Modifier.weight(0.6f).fillMaxWidth(),
+                    )
+                }
             }
         } else {
             Column(
                 modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                controls()
+                // Bedienung scrollbar, damit auf kleinen Displays Notensystem und Klaviatur Platz haben
+                Column(
+                    modifier = Modifier
+                        .weight(0.5f)
+                        .fillMaxWidth()
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    controls()
+                }
+                if (showStaff) StaffView(
+                    song = song,
+                    positionMs = state.positionMs,
+                    hitNoteIds = state.hitNoteIds,
+                    waitingForIds = state.waitingForIds,
+                    practiceHands = state.practiceHands,
+                    modifier = Modifier.height(180.dp).fillMaxWidth(),
+                )
                 PianoRoll(
                     song = song,
                     positionMs = state.positionMs,
@@ -202,7 +240,7 @@ fun PlayerScreen(
                     wrongKeys = state.wrongKeys,
                     onKey = onKey,
                     practiceHands = state.practiceHands,
-                    modifier = Modifier.weight(1f).fillMaxWidth(),
+                    modifier = Modifier.weight(0.5f).fillMaxWidth(),
                 )
             }
         }

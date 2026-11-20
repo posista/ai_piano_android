@@ -153,6 +153,18 @@ Wichtig:
 - YouTube-Videos werden nicht heruntergeladen. Es gibt nur einen Eintrag mit dem offiziellen Titel.
   Nutze Aufnahmen, für die du die Rechte hast.
 
+## Notensystem und Notenerkennung
+
+- **Notensystem:** Über dem Klavier zeigt ein Notensystem die Noten an der Abspiellinie (Button
+  „Notensystem: an/aus“). Oben steht die rechte Hand im Violinschlüssel, unten die linke Hand im
+  Bassschlüssel. Grün = richtig gespielt, orange Ring = wird gerade erwartet, blass = nicht geübte Hand.
+  Die Schlüssel sind nur die Buchstaben „G“ und „F“, keine gedruckten Schlüsselzeichen.
+- **Noten aus PDF oder Bild:** In der Bibliothek über „Noten als PDF oder Bild erkennen“. Erkannt werden
+  gerade gedruckte Notenlinien, Notenköpfe, Tonhöhe über die Position und eine grobe Dauer. Nicht erkannt
+  werden Vorzeichen (es gilt immer der natürliche Ton), Pausen, verbundene Achtel, Verzierungen und Text.
+  Das Ergebnis ist eine MIDI-Datei in der Bibliothek und muss mit dem Original verglichen werden.
+  Die Erkennung ist mit selbst gezeichneten Notenbildern getestet, nicht mit echten Partituren.
+
 ## Lizenz
 
 Noch nicht festgelegt.
