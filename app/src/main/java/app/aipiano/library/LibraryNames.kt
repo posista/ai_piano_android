@@ -19,6 +19,10 @@ object LibraryNames {
         return name.ifBlank { DEFAULT_TITLE }
     }
 
+    /** Entfernt die letzte Dateiendung, egal welche (z. B. ".mp3", ".mp4"). */
+    fun stripAnyExtension(name: String): String =
+        name.substringBeforeLast('.', name).ifBlank { name }
+
     /** Liefert die Video-ID eines YouTube-Links oder null, wenn es kein YouTube-Video ist. */
     fun youtubeVideoId(url: String): String? {
         val uri = runCatching { URI(url.trim()) }.getOrNull() ?: return null

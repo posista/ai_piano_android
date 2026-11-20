@@ -16,7 +16,7 @@ data class LibraryEntry(
     val addedAt: Long,
 )
 
-enum class Source { FILE, YOUTUBE }
+enum class Source { FILE, YOUTUBE, CONVERTED }
 
 /**
  * Speichert Stücke dauerhaft im App-Speicher: eine Indexdatei (JSON) und je Stück eine .mid-Datei.
@@ -33,6 +33,11 @@ class LibraryRepository(context: Context) {
     @Synchronized
     fun addFile(title: String, midi: ByteArray): LibraryEntry =
         add(LibraryEntry(newId(), title, Source.FILE, null, hasMidi = true, addedAt = now()), midi)
+
+    /** Ergebnis einer Umwandlung aus einer Audio- oder Videodatei. */
+    @Synchronized
+    fun addConverted(title: String, midi: ByteArray): LibraryEntry =
+        add(LibraryEntry(newId(), title, Source.CONVERTED, null, hasMidi = true, addedAt = now()), midi)
 
     @Synchronized
     fun addYouTube(title: String, url: String): LibraryEntry =

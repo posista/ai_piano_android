@@ -9,6 +9,9 @@ import app.aipiano.library.LibraryEntry
 import app.aipiano.library.LibraryNames
 import app.aipiano.library.LibraryRepository
 import app.aipiano.library.YouTubeTitle
+import app.aipiano.transcribe.AudioDecoder
+import app.aipiano.transcribe.MidiWriter
+import app.aipiano.transcribe.SpectralTranscriber
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -48,6 +51,35 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
                 }.isSuccess
             }
             _message.value = if (ok) "„$name“ zur Bibliothek hinzugefügt." else "Die Datei konnte nicht gelesen werden."
+            refresh()
+        }
+    }
+
+    /**
+     * Wandelt eine Audio- oder Videodatei in eine MIDI-Datei um und legt sie in der Bibliothek ab.
+     * Die Umwandlung läuft auf dem Hintergrund-Thread und kann bei langen Stücken dauern.
+     */
+    fun convertAudio(uri: Uri) {
+        viewModelScope.launch {
+            _message.value = "Umwandlung läuft … Bei langen Stücken dauert das eine Weile."
+            val title = LibraryNames.stripAnyExtension(LibraryNames.cleanFileName(displayName(uri)))
+            val result = withContext(Dispatchers.Default) {
+                runCatching {
+                    val decoded = AudioDecoder.decode(getApplication(), uri)
+                    val notes = SpectralTranscriber().transcribe(decoded.samples, decoded.sampleRate)
+                    check(notes.isNotEmpty()) { "Es wurden keine Töne erkannt." }
+                    MidiWriter.write(notes, title) to notes.size
+                }
+            }
+            result
+                .onSuccess { (midi, count) ->
+                    withContext(Dispatchers.IO) { repository.addConverted(title, midi) }
+                    _message.value = "„$title“ umgewandelt: $count Noten. Das Ergebnis kann Fehler " +
+                        "enthalten, besonders bei dichter Musik."
+                }
+                .onFailure {
+                    _message.value = "Umwandlung fehlgeschlagen: ${it.message ?: "unbekannter Fehler"}"
+                }
             refresh()
         }
     }

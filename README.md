@@ -138,6 +138,21 @@ gradle testDebugUnitTest assembleDebug     # benötigt Gradle 8.10+, JDK 17 und 
 Für USB-MIDI-Keyboards (ab Schritt 3) wird ein USB-OTG-Adapter (USB-C auf USB-A bzw. USB-C auf
 USB-C, je nach Keyboard) benötigt. Das Handy muss USB-Host/MIDI unterstützen.
 
+## Audio oder Video in MIDI umwandeln (Stand: Bibliothek)
+
+In der Bibliothek gibt es den Button **„Audio oder Video umwandeln“**. Ausgewählt werden kann eine
+Audio- oder Videodatei (WAV, MP3, M4A/AAC, OGG, MP4 u. a.). Die Tonspur wird gelesen, in Noten
+umgewandelt und als MIDI-Datei in der Bibliothek abgelegt. Dann lässt sie sich wie jede andere
+MIDI-Datei spielen.
+
+Wichtig:
+- Die Umwandlung ist eine **Näherung** ohne KI-Modell. Auf dem Beispielstück (gerendert) werden etwa
+  65 % der Noten mit etwa 15 % Fehlnoten erkannt. Bei Klavier-Einzeltönen und einfachen Akkorden
+  funktioniert sie am besten, bei dichter Musik mit Gesang und Schlagzeug deutlich schlechter.
+- Die Decodierung über den Android-Decoder ist auf einem echten Gerät noch **nicht geprüft**.
+- YouTube-Videos werden nicht heruntergeladen. Es gibt nur einen Eintrag mit dem offiziellen Titel.
+  Nutze Aufnahmen, für die du die Rechte hast.
+
 ## Lizenz
 
 Noch nicht festgelegt.
