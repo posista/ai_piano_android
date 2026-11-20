@@ -117,8 +117,13 @@ fun SettingsScreen(
         SectionTitle("Modus")
         ChoiceRow(
             label = "Wartemodus: Das Stück hält an, bis die richtige Taste gespielt wird",
-            selected = settings.waitMode,
-            onSelect = { viewModel.update { it.copy(waitMode = true) } },
+            selected = settings.waitMode && !settings.stepMode,
+            onSelect = { viewModel.update { it.copy(waitMode = true, stepMode = false) } },
+        )
+        ChoiceRow(
+            label = "Schritt-Modus: Jeder richtige Anschlag geht sofort zur nächsten Note weiter",
+            selected = settings.waitMode && settings.stepMode,
+            onSelect = { viewModel.update { it.copy(waitMode = true, stepMode = true) } },
         )
         ChoiceRow(
             label = "Abspielmodus: Das Stück läuft im eingestellten Tempo weiter",

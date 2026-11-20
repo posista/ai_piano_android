@@ -49,6 +49,7 @@ data class PlayerUiState(
     val tempoPercent: Int = 100,
     val practiceHands: PracticeHands = PracticeHands.BOTH,
     val waitMode: Boolean = true,
+    val stepMode: Boolean = false,
     val micSensitivity: Float = 0.6f,
     val soundOn: Boolean = true,
     val chordsTogether: Boolean = true,
@@ -110,6 +111,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                 tempoPercent = settings.tempoPercent,
                 practiceHands = settings.practiceHands,
                 waitMode = settings.waitMode,
+                stepMode = settings.stepMode,
                 micSensitivity = settings.micSensitivity,
                 soundOn = settings.soundOn,
                 chordsTogether = settings.chordsTogether,
@@ -440,11 +442,16 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    /** Wechselt zwischen Wartemodus und Abspielmodus und speichert die Wahl. */
-    fun toggleWaitMode() {
+    /** Schaltet die Modi der Reihe nach durch: Abspielen → Warten → Schritt → Abspielen. */
+    fun cycleMode() {
         viewModelScope.launch {
             val current = settingsRepository.settings.first()
-            settingsRepository.save(current.copy(waitMode = !current.waitMode))
+            val next = when {
+                !current.waitMode -> current.copy(waitMode = true, stepMode = false)
+                !current.stepMode -> current.copy(stepMode = true)
+                else -> current.copy(waitMode = false, stepMode = false)
+            }
+            settingsRepository.save(next)
         }
     }
 
@@ -505,7 +512,12 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                 consumedMs = checkpoint
                 checkpoint = nextCheckpointAfter(consumedMs)
             }
-            if (checkpoint != null && next >= checkpoint) {
+            // Schritt-Modus: keine Wartezeit, nach dem letzten Haltepunkt ist das Stück zu Ende
+            if (checkpoint == null && current.stepMode) {
+                pause()
+                return
+            }
+            if (checkpoint != null && (current.stepMode || next >= checkpoint)) {
                 consumedMs = checkpoint
                 val notes = song.notes.filter {
                     it.startMs == checkpoint && current.practiceHands.includes(it.hand) && it.id !in current.hitNoteIds

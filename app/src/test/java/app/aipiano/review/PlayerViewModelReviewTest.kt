@@ -224,4 +224,23 @@ class PlayerViewModelReviewTest {
         vm.advanceUntilWaiting() // nächster linker Akkord bei 2000 ms
         assertEquals(setOf(43, 47, 50), vm.waitingKeys())
     }
+
+    /** Schritt-Modus: Die Zeit geht nur mit richtigen Anschlägen weiter, falsche Tasten bewegen nichts. */
+    @Test
+    fun stepModeAdvancesOnlyOnCorrectKeys() {
+        val vm = createVm(base.copy(waitMode = true, stepMode = true, chordsTogether = false))
+        vm.play()
+        advance(200)
+        assertEquals(0.0, vm.state.value.positionMs, 0.0)
+        assertEquals(setOf(48, 52, 55, 64), vm.waitingKeys())
+
+        vm.tap(30) // A1, kommt nicht vor
+        advance(200)
+        assertEquals("falsche Taste darf nichts bewegen", 0.0, vm.state.value.positionMs, 0.0)
+
+        vm.waitingKeys().forEach { vm.tap(it) }
+        advance(100)
+        assertEquals("nach richtigen Tasten zur nächsten Note (500 ms)", 500.0, vm.state.value.positionMs, 0.0)
+        assertEquals(setOf(64), vm.waitingKeys())
+    }
 }

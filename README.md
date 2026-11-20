@@ -165,6 +165,14 @@ Wichtig:
   Das Ergebnis ist eine MIDI-Datei in der Bibliothek und muss mit dem Original verglichen werden.
   Die Erkennung ist mit selbst gezeichneten Notenbildern getestet, nicht mit echten Partituren.
 
+## Modi zum Lernen
+
+Der Button „Modus“ schaltet der Reihe nach durch:
+- **Abspielen:** Das Stück läuft im eingestellten Tempo.
+- **Warten:** Das Stück hält an jeder geübten Note an, bis die richtige Taste gespielt wird.
+- **Schritt:** Wie Warten, aber ohne Zeit dazwischen. Jeder richtige Anschlag geht sofort zur
+  nächsten Note weiter, falsche Tasten bewegen nichts.
+
 ## Lizenz
 
 Noch nicht festgelegt.

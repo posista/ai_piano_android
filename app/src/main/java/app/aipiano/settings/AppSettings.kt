@@ -28,6 +28,8 @@ data class AppSettings(
     val practiceHands: PracticeHands = PracticeHands.BOTH,
     /** true = Wartemodus (Stück hält an, bis richtig gespielt), false = Abspielmodus. */
     val waitMode: Boolean = true,
+    /** Schritt-Modus (nur zusammen mit Wartemodus): Die Zeit geht nur mit richtigen Anschlägen weiter. */
+    val stepMode: Boolean = false,
     /** Mikrofon-Empfindlichkeit 0 (nur laute Töne) bis 1 (auch leise Töne). */
     val micSensitivity: Float = 0.6f,
     /** Töne hörbar machen: gespielte Tasten und die Noten, die das Programm selbst spielt. */

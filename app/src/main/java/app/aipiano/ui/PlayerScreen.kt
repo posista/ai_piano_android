@@ -207,8 +207,12 @@ fun PlayerScreen(
                 )
             }
             CompactButton(
-                text = if (state.waitMode) "Modus: Warten" else "Modus: Abspielen",
-                onClick = viewModel::toggleWaitMode,
+                text = when {
+                    !state.waitMode -> "Modus: Abspielen"
+                    state.stepMode -> "Modus: Schritt"
+                    else -> "Modus: Warten"
+                },
+                onClick = viewModel::cycleMode,
             )
         }
 
