@@ -74,6 +74,8 @@ fun PlayerScreen(
     var showStaff by rememberSaveable { mutableStateOf(true) }
     var fullscreen by rememberSaveable { mutableStateOf(false) }
     var moreOpen by remember { mutableStateOf(false) }
+    // Im Schritt-Modus gleitet die Anzeige zur nächsten Note, sonst folgt sie direkt
+    val displayPos = animatedPositionMs(state.positionMs, animate = state.stepMode)
 
     // Beim Verlassen der App anhalten, Mikrofon und Ton freigeben
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -98,7 +100,7 @@ fun PlayerScreen(
         if (showStaff) {
             StaffView(
                 song = song,
-                positionMs = state.positionMs,
+                positionMs = displayPos,
                 hitNoteIds = state.hitNoteIds,
                 waitingForIds = state.waitingForIds,
                 practiceHands = state.practiceHands,
@@ -113,7 +115,7 @@ fun PlayerScreen(
                 notes(Modifier.weight(if (showStaff) 0.4f else 0.01f))
                 PianoRoll(
                     song = song,
-                    positionMs = state.positionMs,
+                    positionMs = displayPos,
                     hitNoteIds = state.hitNoteIds,
                     pressedKeys = state.pressedKeys,
                     wrongKeys = state.wrongKeys,
@@ -258,7 +260,7 @@ fun PlayerScreen(
         notes(Modifier.weight(if (showStaff) 0.4f else 0.01f))
         PianoRoll(
             song = song,
-            positionMs = state.positionMs,
+            positionMs = displayPos,
             hitNoteIds = state.hitNoteIds,
             pressedKeys = state.pressedKeys,
             wrongKeys = state.wrongKeys,
