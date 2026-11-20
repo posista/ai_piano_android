@@ -7,6 +7,8 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onRoot
+import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import app.aipiano.ui.PlayerScreen
@@ -68,5 +70,26 @@ class FeatureShotsTest {
             shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofMillis(16))
         }
         check(condition()) { "Bedingung nicht erreicht" }
+    }
+
+    @Test
+    fun compactAndFullscreenScreens() {
+        lateinit var vm: PlayerViewModel
+        compose.setContent {
+            MaterialTheme(colorScheme = darkColorScheme()) {
+                Surface(Modifier.fillMaxSize()) {
+                    vm = viewModel()
+                    PlayerScreen(onOpenSettings = {}, viewModel = vm)
+                }
+            }
+        }
+        compose.runOnIdle { vm.loadSample() }
+        waitUntil { vm.state.value.song != null }
+        compose.waitForIdle()
+        compose.onRoot().captureRoboImage("build/review/compact_portrait.png")
+
+        compose.onNodeWithText("Vollbild").performClick()
+        compose.waitForIdle()
+        compose.onRoot().captureRoboImage("build/review/fullscreen.png")
     }
 }

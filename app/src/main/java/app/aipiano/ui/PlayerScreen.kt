@@ -1,22 +1,28 @@
 package app.aipiano.ui
 
+import android.app.Activity
+import android.content.ContextWrapper
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.systemBarsPadding
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -26,12 +32,20 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -40,6 +54,11 @@ import app.aipiano.settings.InputSourceType
 import app.aipiano.settings.PracticeHands
 import kotlin.math.roundToInt
 
+/**
+ * Hauptbildschirm zum Spielen. Oben eine kompakte Leiste (Abspielen, Tempo, Üben, Modus),
+ * darunter Notensystem und Klaviatur. Über "Mehr" sind die seltener gebrauchten Funktionen,
+ * "Vollbild" blendet alles außer Notensystem und Klaviatur aus.
+ */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun PlayerScreen(
@@ -53,6 +72,8 @@ fun PlayerScreen(
     }
     val song = state.song
     var showStaff by rememberSaveable { mutableStateOf(true) }
+    var fullscreen by rememberSaveable { mutableStateOf(false) }
+    var moreOpen by remember { mutableStateOf(false) }
 
     // Beim Verlassen der App anhalten, Mikrofon und Ton freigeben
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -68,170 +89,28 @@ fun PlayerScreen(
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
-    val controls: @Composable () -> Unit = {
-        FlowRow(
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            Button(onClick = { openFile.launch(arrayOf("*/*")) }) { Text("MIDI öffnen") }
-            OutlinedButton(onClick = viewModel::loadSample) { Text("Beispiel") }
-            OutlinedButton(onClick = onOpenSettings) { Text("Einstellungen") }
-            OutlinedButton(onClick = onOpenLibrary) { Text("Bibliothek") }
-            Button(onClick = viewModel::togglePlay, enabled = song != null) {
-                Text(if (state.playing) "Pause" else "Abspielen")
-            }
-            OutlinedButton(onClick = viewModel::restart, enabled = song != null) { Text("Neustart") }
-            OutlinedButton(onClick = viewModel::toggleWaitMode) {
-                Text(if (state.waitMode) "Modus: Warten" else "Modus: Abspielen")
-            }
-            OutlinedButton(onClick = viewModel::toggleSound) {
-                Text(if (state.soundOn) "Ton: an" else "Ton: aus")
-            }
-            OutlinedButton(onClick = { showStaff = !showStaff }) {
-                Text(if (showStaff) "Notensystem: an" else "Notensystem: aus")
-            }
-        }
-
-        // Übungsmodus: welche Hand gespielt werden muss
-        FlowRow(
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            Text("Üben:", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 8.dp))
-            PracticeHands.entries.forEach { hands ->
-                FilterChip(
-                    selected = state.practiceHands == hands,
-                    onClick = { viewModel.setPracticeHands(hands) },
-                    label = { Text(hands.shortLabel) },
-                )
-            }
-            OutlinedButton(onClick = viewModel::toggleOtherHandSound) {
-                Text(if (state.otherHandSound) "Andere Hand: Ton an" else "Andere Hand: stumm")
-            }
-        }
-
-        Text("Tempo: ${state.tempoPercent} %", style = MaterialTheme.typography.bodyMedium)
-        Slider(
-            value = state.tempoPercent.toFloat(),
-            onValueChange = { viewModel.setTempo(it.roundToInt()) },
-            onValueChangeFinished = viewModel::saveTempo,
-            valueRange = 50f..150f,
-            steps = 19,
-        )
-
-        Text("Eingabe: ${state.inputStatus}", style = MaterialTheme.typography.bodySmall)
-        Text(
-            "Richtig: ${state.correctCount} · Falsch: ${state.wrongCount}",
-            style = MaterialTheme.typography.bodySmall,
-        )
-
-        if (song != null) {
-            Text(
-                "${song.name} · ${song.notes.size} Noten · ${formatTime(song.durationMs)} · " +
-                    "${song.tracks.size} Spuren",
-                style = MaterialTheme.typography.bodySmall,
-            )
-        } else {
-            Text(
-                "Noch kein Stück geladen. Tippe auf „MIDI öffnen“ oder „Beispiel“.",
-                style = MaterialTheme.typography.bodySmall,
-            )
-        }
-
-        if (state.waitingForIds.isNotEmpty() && song != null) {
-            val waitingNames = song.notes
-                .filter { it.id in state.waitingForIds }
-                .map { noteName(it.midi) }
-                .distinct()
-                .joinToString(" + ")
-            Text(
-                "Warte auf: $waitingNames",
-                color = WrongColor,
-                style = MaterialTheme.typography.titleMedium,
-            )
-        }
-
-        state.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text("■ Linke Hand", color = LeftHandColor, style = MaterialTheme.typography.labelLarge)
-            Text("■ Rechte Hand", color = RightHandColor, style = MaterialTheme.typography.labelLarge)
-            Text("■ Richtig", color = HitColor, style = MaterialTheme.typography.labelLarge)
-            Text("■ Falsch", color = WrongColor, style = MaterialTheme.typography.labelLarge)
-        }
-        Text(
-            "Zoom: Pinch · Verschieben: Wischen",
-            color = Color.Gray,
-            style = MaterialTheme.typography.labelSmall,
-        )
-    }
+    FullscreenEffect(enabled = fullscreen)
+    // Zurück-Taste verlässt zuerst den Vollbildmodus
+    BackHandler(enabled = fullscreen) { fullscreen = false }
 
     val onKey = if (state.inputSource == InputSourceType.VIRTUAL) viewModel::onVirtualKey else null
+    val notes: @Composable (Modifier) -> Unit = { modifier ->
+        if (showStaff) {
+            StaffView(
+                song = song,
+                positionMs = state.positionMs,
+                hitNoteIds = state.hitNoteIds,
+                waitingForIds = state.waitingForIds,
+                practiceHands = state.practiceHands,
+                modifier = modifier.fillMaxWidth(),
+            )
+        }
+    }
 
-    BoxWithConstraints(Modifier.fillMaxSize().systemBarsPadding()) {
-        val landscape = maxWidth > maxHeight
-        if (landscape) {
-            // Querformat: Bedienung links (scrollbar), Notensystem und Klaviatur rechts
-            Row(
-                modifier = Modifier.fillMaxSize().padding(8.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                Column(
-                    modifier = Modifier
-                        .weight(0.4f)
-                        .fillMaxHeight()
-                        .verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    controls()
-                }
-                Column(
-                    modifier = Modifier.weight(0.6f).fillMaxHeight(),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    if (showStaff) StaffView(
-                        song = song,
-                        positionMs = state.positionMs,
-                        hitNoteIds = state.hitNoteIds,
-                        waitingForIds = state.waitingForIds,
-                        practiceHands = state.practiceHands,
-                        modifier = Modifier.weight(0.4f).fillMaxWidth(),
-                    )
-                    PianoRoll(
-                        song = song,
-                        positionMs = state.positionMs,
-                        hitNoteIds = state.hitNoteIds,
-                        pressedKeys = state.pressedKeys,
-                        wrongKeys = state.wrongKeys,
-                        onKey = onKey,
-                        practiceHands = state.practiceHands,
-                        modifier = Modifier.weight(0.6f).fillMaxWidth(),
-                    )
-                }
-            }
-        } else {
-            Column(
-                modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                // Bedienung scrollbar, damit auf kleinen Displays Notensystem und Klaviatur Platz haben
-                Column(
-                    modifier = Modifier
-                        .weight(0.5f)
-                        .fillMaxWidth()
-                        .verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    controls()
-                }
-                if (showStaff) StaffView(
-                    song = song,
-                    positionMs = state.positionMs,
-                    hitNoteIds = state.hitNoteIds,
-                    waitingForIds = state.waitingForIds,
-                    practiceHands = state.practiceHands,
-                    modifier = Modifier.height(180.dp).fillMaxWidth(),
-                )
+    if (fullscreen) {
+        Box(Modifier.fillMaxSize().background(Color.Black)) {
+            Column(Modifier.fillMaxSize()) {
+                notes(Modifier.weight(if (showStaff) 0.4f else 0.01f))
                 PianoRoll(
                     song = song,
                     positionMs = state.positionMs,
@@ -240,11 +119,212 @@ fun PlayerScreen(
                     wrongKeys = state.wrongKeys,
                     onKey = onKey,
                     practiceHands = state.practiceHands,
-                    modifier = Modifier.weight(0.5f).fillMaxWidth(),
+                    modifier = Modifier.weight(if (showStaff) 0.6f else 0.99f).fillMaxWidth(),
                 )
             }
+            // Schwebende Bedienung oben rechts, damit das Bild frei bleibt
+            Row(
+                modifier = Modifier.align(Alignment.TopEnd).padding(8.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                CompactButton(
+                    text = if (state.playing) "Pause" else "Abspielen",
+                    primary = true,
+                    onClick = viewModel::togglePlay,
+                    enabled = song != null,
+                )
+                CompactButton(text = "Verlassen", onClick = { fullscreen = false })
+            }
+        }
+        return
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .systemBarsPadding()
+            .padding(horizontal = 12.dp, vertical = 6.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        // Zeile 1: Transport und Hauptfunktionen
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            CompactButton(
+                text = if (state.playing) "Pause" else "Abspielen",
+                primary = true,
+                onClick = viewModel::togglePlay,
+                enabled = song != null,
+            )
+            CompactButton(text = "Neustart", onClick = viewModel::restart, enabled = song != null)
+            CompactButton(text = "Vollbild", onClick = { fullscreen = true })
+            Box {
+                CompactButton(text = "Mehr ▾", onClick = { moreOpen = true })
+                DropdownMenu(expanded = moreOpen, onDismissRequest = { moreOpen = false }) {
+                    MenuItem("MIDI öffnen") { openFile.launch(arrayOf("*/*")) }
+                    MenuItem("Beispiel laden") { viewModel.loadSample() }
+                    MenuItem("Bibliothek") { onOpenLibrary() }
+                    MenuItem("Einstellungen") { onOpenSettings() }
+                    MenuItem(if (state.soundOn) "Ton: an → aus" else "Ton: aus → an") { viewModel.toggleSound() }
+                    MenuItem(if (state.otherHandSound) "Andere Hand: Ton aus" else "Andere Hand: Ton an") {
+                        viewModel.toggleOtherHandSound()
+                    }
+                    MenuItem(if (showStaff) "Notensystem ausblenden" else "Notensystem einblenden") {
+                        showStaff = !showStaff
+                    }
+                }
+            }
+        }
+
+        // Zeile 2: Tempo
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                "Tempo ${state.tempoPercent} %",
+                style = MaterialTheme.typography.labelLarge,
+                modifier = Modifier.width(96.dp),
+            )
+            Slider(
+                value = state.tempoPercent.toFloat(),
+                onValueChange = { viewModel.setTempo(it.roundToInt()) },
+                onValueChangeFinished = viewModel::saveTempo,
+                valueRange = 50f..150f,
+                steps = 19,
+                modifier = Modifier.weight(1f),
+            )
+        }
+
+        // Zeile 3: Üben und Modus
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            PracticeHands.entries.forEach { hands ->
+                FilterChip(
+                    selected = state.practiceHands == hands,
+                    onClick = { viewModel.setPracticeHands(hands) },
+                    label = { Text(hands.shortLabel, style = MaterialTheme.typography.labelLarge) },
+                )
+            }
+            CompactButton(
+                text = if (state.waitMode) "Modus: Warten" else "Modus: Abspielen",
+                onClick = viewModel::toggleWaitMode,
+            )
+        }
+
+        // Zeile 4: Status in einer Zeile
+        val waitingNames = song?.let { s ->
+            s.notes.filter { it.id in state.waitingForIds }
+                .map { noteName(it.midi) }
+                .distinct()
+                .joinToString(" + ")
+        }.orEmpty()
+        val status = when {
+            state.error != null -> state.error!!
+            waitingNames.isNotEmpty() -> "Warte auf: $waitingNames"
+            song != null -> "${song.name} · ${song.notes.size} Noten · ${formatTime(song.durationMs)} · " +
+                "Richtig ${state.correctCount} · Falsch ${state.wrongCount}"
+            else -> "Noch kein Stück. „Mehr“ → MIDI öffnen, Bibliothek oder Beispiel."
+        }
+        Text(
+            status,
+            style = MaterialTheme.typography.bodySmall,
+            color = when {
+                state.error != null -> MaterialTheme.colorScheme.error
+                waitingNames.isNotEmpty() -> WrongColor
+                else -> MaterialTheme.colorScheme.onBackground
+            },
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        Text(
+            "Eingabe: ${state.inputStatus}",
+            style = MaterialTheme.typography.labelSmall,
+            color = Color.Gray,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+
+        Text(
+            "■ Links  ■ Rechts  ■ Richtig  ■ Falsch",
+            style = MaterialTheme.typography.labelSmall,
+            color = Color.Gray,
+        )
+
+        notes(Modifier.weight(if (showStaff) 0.4f else 0.01f))
+        PianoRoll(
+            song = song,
+            positionMs = state.positionMs,
+            hitNoteIds = state.hitNoteIds,
+            pressedKeys = state.pressedKeys,
+            wrongKeys = state.wrongKeys,
+            onKey = onKey,
+            practiceHands = state.practiceHands,
+            modifier = Modifier.weight(if (showStaff) 0.6f else 0.99f).fillMaxWidth(),
+        )
+    }
+}
+
+/** Kompakter Button mit kleiner Innenabstand, damit viele Funktionen in eine Zeile passen. */
+@Composable
+private fun CompactButton(
+    text: String,
+    onClick: () -> Unit,
+    primary: Boolean = false,
+    enabled: Boolean = true,
+) {
+    val padding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
+    val modifier = Modifier.heightIn(min = 34.dp)
+    if (primary) {
+        Button(onClick = onClick, enabled = enabled, contentPadding = padding, modifier = modifier) {
+            Text(text, style = MaterialTheme.typography.labelLarge)
+        }
+    } else {
+        OutlinedButton(onClick = onClick, enabled = enabled, contentPadding = padding, modifier = modifier) {
+            Text(text, style = MaterialTheme.typography.labelLarge)
         }
     }
+}
+
+@Composable
+private fun MenuItem(text: String, onClick: () -> Unit) {
+    DropdownMenuItem(
+        text = { Text(text) },
+        onClick = onClick,
+    )
+}
+
+/**
+ * Schaltet die Systemleisten (Statusleiste, Navigation) für den Vollbildmodus aus und stellt sie
+ * beim Verlassen wieder her. Die Leisten erscheinen bei einer Wischgeste nur kurz.
+ */
+@Composable
+private fun FullscreenEffect(enabled: Boolean) {
+    val view = LocalView.current
+    DisposableEffect(enabled) {
+        val window = view.context.findActivity()?.window
+        if (window != null) {
+            val controller = WindowCompat.getInsetsController(window, view)
+            if (enabled) {
+                controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+                controller.hide(WindowInsetsCompat.Type.systemBars())
+            } else {
+                controller.show(WindowInsetsCompat.Type.systemBars())
+            }
+        }
+        onDispose {
+            window?.let { WindowCompat.getInsetsController(it, view).show(WindowInsetsCompat.Type.systemBars()) }
+        }
+    }
+}
+
+private fun android.content.Context.findActivity(): Activity? {
+    var context: android.content.Context? = this
+    while (context is ContextWrapper) {
+        if (context is Activity) return context
+        context = context.baseContext
+    }
+    return null
 }
 
 /** Kurzbezeichnung für die Übungsauswahl im Hauptbildschirm. */
