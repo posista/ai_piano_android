@@ -6,6 +6,9 @@
     <uses-feature android:name="android.hardware.usb.host" android:required="false" />
     <uses-feature android:name="android.hardware.microphone" android:required="false" />
 
+    <!-- Nur um den Titel eines YouTube-Links über die offizielle oEmbed-Schnittstelle abzurufen. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
     <!-- Nur für die Tonerkennung per Mikrofon. Wird zur Laufzeit angefragt, siehe SettingsScreen. -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
 

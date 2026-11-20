@@ -40,6 +40,7 @@ import kotlin.math.roundToInt
 @Composable
 fun PlayerScreen(
     onOpenSettings: () -> Unit,
+    onOpenLibrary: () -> Unit = {},
     viewModel: PlayerViewModel = viewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -70,6 +71,7 @@ fun PlayerScreen(
             Button(onClick = { openFile.launch(arrayOf("*/*")) }) { Text("MIDI öffnen") }
             OutlinedButton(onClick = viewModel::loadSample) { Text("Beispiel") }
             OutlinedButton(onClick = onOpenSettings) { Text("Einstellungen") }
+            OutlinedButton(onClick = onOpenLibrary) { Text("Bibliothek") }
             Button(onClick = viewModel::togglePlay, enabled = song != null) {
                 Text(if (state.playing) "Pause" else "Abspielen")
             }

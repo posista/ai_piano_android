@@ -2,6 +2,7 @@ package app.aipiano.ui
 
 import android.app.Application
 import android.net.Uri
+import android.provider.OpenableColumns
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import app.aipiano.audio.NoteSynth
@@ -11,6 +12,8 @@ import app.aipiano.input.MidiUsbInputSource
 import app.aipiano.input.NoteEvent
 import app.aipiano.input.NoteInputSource
 import app.aipiano.input.VirtualKeyboardInputSource
+import app.aipiano.library.LibraryNames
+import app.aipiano.library.LibraryRepository
 import app.aipiano.midi.MidiParser
 import app.aipiano.midi.Song
 import app.aipiano.midi.SongNote
@@ -72,6 +75,7 @@ data class PlayerUiState(
 class PlayerViewModel(application: Application) : AndroidViewModel(application) {
 
     private val settingsRepository = SettingsRepository(application)
+    private val libraryRepository = LibraryRepository(application)
     private val usbSource = MidiUsbInputSource(application)
     private val virtualSource = VirtualKeyboardInputSource()
     private val micSource = MicrophoneInputSource { _state.value.micSensitivity }
@@ -303,27 +307,52 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         return best
     }
 
+    /** Öffnet eine Datei und legt sie zusätzlich in der Bibliothek ab. */
     fun loadSong(uri: Uri) {
-        val name = uri.lastPathSegment?.substringAfterLast('/')?.substringAfterLast(':')
-            ?: "MIDI-Datei"
-        loadFrom(name) {
+        val name = LibraryNames.cleanFileName(displayName(uri))
+        loadFrom(name, persist = true) {
             getApplication<Application>().contentResolver.openInputStream(uri)?.use { it.readBytes() }
                 ?: throw IllegalArgumentException("Die Datei konnte nicht geöffnet werden.")
         }
     }
 
+    /** Lädt ein Stück aus der Bibliothek. */
+    fun loadLibraryEntry(id: String) {
+        val title = libraryRepository.list().firstOrNull { it.id == id }?.title ?: LibraryNames.DEFAULT_TITLE
+        loadFrom(title, persist = false) {
+            libraryRepository.readMidi(id)
+                ?: throw IllegalArgumentException("Für dieses Stück ist noch keine MIDI-Datei hinterlegt.")
+        }
+    }
+
+    /** Anzeigename der Datei laut Speicher-Anbieter (z. B. "Ode an die Freude.mid"). */
+    private fun displayName(uri: Uri): String? {
+        val cursor = getApplication<Application>().contentResolver
+            .query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)
+        cursor?.use {
+            if (it.moveToFirst()) return it.getString(0)
+        }
+        return uri.lastPathSegment
+    }
+
     fun loadSample() {
-        loadFrom("Ode an die Freude") {
+        loadFrom("Ode an die Freude", persist = false) {
             getApplication<Application>().assets.open(SAMPLE_ASSET).use { it.readBytes() }
         }
     }
 
-    private fun loadFrom(name: String, read: () -> ByteArray) {
+    private fun loadFrom(name: String, persist: Boolean, read: () -> ByteArray) {
         viewModelScope.launch {
             val result = withContext(Dispatchers.IO) {
-                runCatching { MidiParser.parse(read(), name) }
+                runCatching {
+                    val bytes = read()
+                    MidiParser.parse(bytes, name) to bytes
+                }
             }
-            result
+            result.getOrNull()?.let { (_, bytes) ->
+                if (persist) withContext(Dispatchers.IO) { libraryRepository.addFile(name, bytes) }
+            }
+            result.map { it.first }
                 .onSuccess { song ->
                     pause()
                     refreshCheckpoints(song, _state.value.practiceHands)
