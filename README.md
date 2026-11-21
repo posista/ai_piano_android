@@ -164,7 +164,10 @@ Wichtig:
   gerade gedruckte Notenlinien, Notenköpfe, Tonhöhe über die Position und eine grobe Dauer. Nicht erkannt
   werden Vorzeichen (es gilt immer der natürliche Ton), Pausen, verbundene Achtel, Verzierungen und Text.
   Das Ergebnis ist eine MIDI-Datei in der Bibliothek und muss mit dem Original verglichen werden.
-  Die Erkennung ist mit selbst gezeichneten Notenbildern getestet, nicht mit echten Partituren.
+  Prüfstand: Zufällige zweistimmige Melodien mit Vierteln, Halben, Ganzen, Akkorden und Kreuzen werden
+  mit echten Notenköpfen (Bravura) gezeichnet und zurückgelesen. Ergebnis: etwa 74 % der Noten werden
+  richtig erkannt, 85 % der erkannten Noten stimmen. Echte Partituren sind ungetestet und werden
+  vermutlich schlechter erkannt.
 
 ## Modi zum Lernen
 
