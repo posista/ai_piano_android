@@ -185,6 +185,12 @@ Der Button „Modus“ schaltet der Reihe nach durch:
 - Die Schrift `app/src/main/res/font/bravura.otf` enthält nur die drei Zeichen Violinschlüssel,
   Bassschlüssel und Kreuz.
 
+## Quellen der Testdaten
+
+- `app/src/test/resources/ode_joy_public_domain.png`: Notenbild der Melodie "Ode an die Freude"
+  von Beethoven (1824), Wikimedia Commons, Lizenz: Public domain. Nur für Tests, nicht Teil der App.
+- `app/src/test/resources/bravura_full.otf`: Musikschrift Bravura, SIL Open Font License 1.1. Nur für Tests.
+
 ## Lizenz
 
 Noch nicht festgelegt.

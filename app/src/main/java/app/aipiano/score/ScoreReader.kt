@@ -26,6 +26,8 @@ object ScoreReader {
     internal var debug: ((String) -> Unit)? = null
 
     private const val SECONDS_PER_BEAT = 0.5
+    /** Reihenfolge der Kreuze in der Vorzeichnung (Buchstaben 0 = C … 6 = B). */
+    private val SHARP_ORDER = listOf(3, 0, 4, 1, 5, 2, 6)
     private const val VELOCITY = 90
 
     private class Staff(val lines: DoubleArray) {
@@ -60,7 +62,8 @@ object ScoreReader {
         for (staff in staves) removeStaffLines(cleaned, staff)
 
         val (rawHeads, accidentals) = findHeads(cleaned, staves)
-        val heads = attachAccidentals(rawHeads, accidentals)
+        val (attached, unattached) = attachAccidentals(rawHeads, accidentals)
+        val heads = applyKeySignature(attached, unattached)
         val notes = ArrayList<DetectedNote>()
         var systemStart = offsetBeats
         for (system in systems) {
@@ -261,9 +264,48 @@ object ScoreReader {
             shape.maxRow in (spacing * 0.25).roundToInt()..(spacing * 1.0).roundToInt()
     }
 
+    /**
+     * Kreuze am Zeilenanfang, die zu keinem Kopf gehören, sind die Vorzeichnung der Tonart. Jedes
+     * Kreuz gilt für alle Noten seines Buchstabens auf dieser Notenzeile. Dafür wird der Buchstabe
+     * aus der Höhe des Kreuzes im Notensystem abgeleitet.
+     */
+    private fun applyKeySignature(heads: List<Head>, unattached: List<Accidental>): List<Head> {
+        val result = heads.toMutableList()
+        for (staff in heads.map { it.staff }.distinct()) {
+            val staffHeads = heads.filter { it.staff === staff }
+            if (staffHeads.isEmpty()) continue
+            // Vorzeichnung liegt im linken Teil der Zeile. Ein einzelner Fleck ganz links (z. B. vom
+            // Schlüssel) soll nicht als erster Kopf gelten, deshalb das Viertel der Köpfe nehmen.
+            val sortedX = staffHeads.map { it.x }.sorted()
+            val leftLimit = sortedX[sortedX.size / 4]
+            debug?.invoke("VORZEICHNUNG grenze=${"%.0f".format(leftLimit)}")
+            // Kreuze der Tonart stehen immer in dieser Reihenfolge: F C G D A E B. Eine Tonart mit n Kreuzen
+            // nutzt die ersten n davon. Die Höhe des einzelnen Kreuzes ist dafür zu ungenau.
+            val count = unattached.count { it.staff === staff && it.x < leftLimit }
+            val keyLetters = SHARP_ORDER.take(count.coerceIn(0, SHARP_ORDER.size)).toSet()
+            debug?.invoke("VORZEICHNUNG anzahl=$count buchstaben=$keyLetters")
+            if (keyLetters.isEmpty()) continue
+            for (i in result.indices) {
+                val h = result[i]
+                if (h.staff !== staff || h.sharp) continue
+                val reference = if (staff === staffOfFirstSystemStaff(staff, heads)) StaffMath.TREBLE_BOTTOM_STEP else StaffMath.BASS_BOTTOM_STEP
+                val step = reference + ((staff.bottom - h.y) / (staff.spacing / 2.0)).roundToInt()
+                if (step.mod(7) in keyLetters) result[i] = Head(h.x, h.y, h.beats, h.staff, sharp = true)
+            }
+        }
+        return result
+    }
+
+    /** Erstes Notensystem der Seite ist der Violinschlüssel, alle Zeilen nutzen dessen Bezug. */
+    private fun staffOfFirstSystemStaff(staff: Staff, heads: List<Head>): Staff? = staff
+
     /** Ordnet jedem Kreuz den Kopf rechts daneben auf gleicher Höhe zu. */
-    private fun attachAccidentals(heads: List<Head>, accidentals: List<Accidental>): List<Head> {
+    private fun attachAccidentals(
+        heads: List<Head>,
+        accidentals: List<Accidental>,
+    ): Pair<List<Head>, List<Accidental>> {
         val sharpened = BooleanArray(heads.size)
+        val unattached = ArrayList<Accidental>()
         for (acc in accidentals) {
             val spacing = acc.staff.spacing
             var best = -1
@@ -278,9 +320,9 @@ object ScoreReader {
                     }
                 }
             }
-            if (best >= 0) sharpened[best] = true
+            if (best >= 0) sharpened[best] = true else unattached += acc
         }
-        return heads.mapIndexed { i, h -> if (sharpened[i]) Head(h.x, h.y, h.beats, h.staff, sharp = true) else h }
+        return heads.mapIndexed { i, h -> if (sharpened[i]) Head(h.x, h.y, h.beats, h.staff, sharp = true) else h } to unattached
     }
 
     /**
