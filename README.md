@@ -158,7 +158,8 @@ Wichtig:
 - **Notensystem:** Über dem Klavier zeigt ein Notensystem die Noten an der Abspiellinie (Button
   „Notensystem: an/aus“). Oben steht die rechte Hand im Violinschlüssel, unten die linke Hand im
   Bassschlüssel. Grün = richtig gespielt, orange Ring = wird gerade erwartet, blass = nicht geübte Hand.
-  Die Schlüssel sind nur die Buchstaben „G“ und „F“, keine gedruckten Schlüsselzeichen.
+  Die Schlüssel und das Kreuz kommen aus der Musikschrift Bravura (SIL Open Font License, siehe
+  `licenses/Bravura-OFL-1.1.txt`).
 - **Noten aus PDF oder Bild:** In der Bibliothek über „Noten als PDF oder Bild erkennen“. Erkannt werden
   gerade gedruckte Notenlinien, Notenköpfe, Tonhöhe über die Position und eine grobe Dauer. Nicht erkannt
   werden Vorzeichen (es gilt immer der natürliche Ton), Pausen, verbundene Achtel, Verzierungen und Text.
@@ -172,6 +173,14 @@ Der Button „Modus“ schaltet der Reihe nach durch:
 - **Warten:** Das Stück hält an jeder geübten Note an, bis die richtige Taste gespielt wird.
 - **Schritt:** Wie Warten, aber ohne Zeit dazwischen. Jeder richtige Anschlag geht sofort zur
   nächsten Note weiter, falsche Tasten bewegen nichts.
+
+## Technik-Hinweise
+
+- Android Gradle Plugin 8.7, `compileSdk` 35, `targetSdk` 35. Die neuesten AndroidX-Bibliotheken
+  setzen AGP 9.1 voraus. Ein Umstieg ist ein eigener Schritt und ist bewusst noch nicht gemacht.
+  Deshalb ist der Lint-Hinweis „GradleDependency“ im Projekt abgeschaltet.
+- Die Schrift `app/src/main/res/font/bravura.otf` enthält nur die drei Zeichen Violinschlüssel,
+  Bassschlüssel und Kreuz.
 
 ## Lizenz
 

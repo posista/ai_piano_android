@@ -84,7 +84,8 @@ object AudioDecoder {
                         val out = codec.outputFormat
                         sampleRate = out.getInteger(MediaFormat.KEY_SAMPLE_RATE)
                         channels = out.getInteger(MediaFormat.KEY_CHANNEL_COUNT)
-                        pcmFloat = out.getInteger(MediaFormat.KEY_PCM_ENCODING, 2) == PCM_FLOAT
+                        pcmFloat = out.containsKey(MediaFormat.KEY_PCM_ENCODING) &&
+                            out.getInteger(MediaFormat.KEY_PCM_ENCODING) == PCM_FLOAT
                     }
                     outIndex >= 0 -> {
                         if (info.size > 0) {

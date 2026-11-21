@@ -68,6 +68,7 @@ class MicrophoneInputSource(private val sensitivity: () -> Float) : NoteInputSou
         }
     }
 
+    @SuppressLint("MissingPermission") // Berechtigung prüft PlayerViewModel vor jedem Start
     private fun captureWhileCurrent(mySession: Int) {
         fun current() = running && session == mySession
 
